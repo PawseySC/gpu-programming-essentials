@@ -11,7 +11,14 @@
 })
 
 
+/**
+    Kernel to transpose a Matrix.
 
+    Parameters:
+    - a_in: input vector holding the matrix to be transposed.
+    - a_trans: output vector where to write the transposed matrix.
+    - m, n: number of rows and columns respectively in matrix a_in.
+*/
 __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
     unsigned int idx_in = blockDim.x * blockIdx.x + threadIdx.x;
     if (idx_in <  /* TODO: complete here */){
@@ -22,7 +29,10 @@ __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
 }
 
 
-
+/**
+ * Computes the transpose of the 2D matrix A of m rows and n columns.
+ * Returns A_transposed, a matrix of n rows and m columns.
+ */ 
 float* matrix_transpose_driver(float *A, int m, int n){
     float *dev_A, *dev_A_transposed, *A_transposed;
     CUDA_CHECK_ERROR(cudaMalloc(&dev_A, sizeof(float) * n * m));
@@ -40,7 +50,6 @@ float* matrix_transpose_driver(float *A, int m, int n){
     CUDA_CHECK_ERROR(cudaFree(dev_A_transposed));
     return A_transposed;
 }
-
 
 
 
