@@ -1,14 +1,37 @@
-#include <cstdlib>
-#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include "../common/timer.h"
 
 
 #define NTHREADS 1024
+
 #define CUDA_CHECK_ERROR(X)({\
     if((X) != cudaSuccess){\
         fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString((X)));\
         exit(1);\
     }\
 })
+
+
+#define MALLOC_CHECK_ERROR(X)({\
+    if ((X) == 0){\
+        fprintf(stderr, "Malloc error (%s:%d): %i\n", __FILE__, __LINE__, (X));\
+        exit(1);\
+    }\
+})
+
+
+// The following is the CPU implementation of matrix transpose.
+float *cpu_matrix_transpose(float *a_in, int m, int n){
+    float *a_trans = (float*) malloc(sizeof(float) * n * m);
+    for(int row = 0; row < n; row++){
+        for(int col = 0; col < m; col++){
+            a_trans[row * m + col] = a_in[col * n + row];
+        }
+    }
+    return a_trans;
+}
+
 
 
 /**
@@ -29,21 +52,28 @@ __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
 }
 
 
+
 /**
  * Computes the transpose of the 2D matrix A of m rows and n columns.
  * Returns A_transposed, a matrix of n rows and m columns.
  */ 
-float* matrix_transpose_driver(float *A, int m, int n){
+ float* matrix_transpose_driver(float *A, int m, int n){
     float *dev_A, *dev_A_transposed, *A_transposed;
     CUDA_CHECK_ERROR(cudaMalloc(&dev_A, sizeof(float) * n * m));
     CUDA_CHECK_ERROR(cudaMalloc(&dev_A_transposed, sizeof(float) * n * m));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n * m, cudaMemcpyHostToDevice));
     // allocate memory on CPU to store final result
-    A_transposed = new float[n * m];
+    A_transposed = (float*) malloc(sizeof(float) * n * m);
+    MALLOC_CHECK_ERROR(A_transposed);
     // setup kernel configuration
     unsigned int nBlocks = (n * m + NTHREADS - 1) / NTHREADS;
+    ptimer_t kernel_timer;
+    timer_start(&kernel_timer);
     matrix_transpose<<<nBlocks, NTHREADS>>>(dev_A, dev_A_transposed, m, n);
     CUDA_CHECK_ERROR(cudaGetLastError());
+    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    timer_stop(&kernel_timer);
+    printf("'matrix_transpose' kernel execution time (ms): %.4f\n", timer_elapsed(kernel_timer));
     CUDA_CHECK_ERROR(cudaMemcpy(A_transposed, dev_A_transposed, sizeof(float) * n * m, cudaMemcpyDeviceToHost));
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
     CUDA_CHECK_ERROR(cudaFree(dev_A));
@@ -53,7 +83,37 @@ float* matrix_transpose_driver(float *A, int m, int n){
 
 
 
-int main(void){
+void test_performance(int n, int m){
+    float *v = (float *) malloc(sizeof(float) * n * m);
+    MALLOC_CHECK_ERROR(v);
+    for(int i = 0; i < n * m; i++) v[i] = rand() % 3054;
+    
+    // compute transpose on CPU
+    ptimer_t cpu_transpose_time;
+    timer_start(&cpu_transpose_time);
+    float *cpu_result = cpu_matrix_transpose(v, m, n);
+    timer_stop(&cpu_transpose_time);
+    printf("'cpu_matrix_transpose' execution time (ms): %.4f\n", timer_elapsed(cpu_transpose_time));
+    // compute on gpu
+    ptimer_t gpu_transpose_time;
+    timer_start(&gpu_transpose_time);
+    float *gpu_result = matrix_transpose_driver(v, m, n);
+    timer_stop(&gpu_transpose_time);
+    printf("'matrix_transpose_driver' execution time (ms): %.4f\n", timer_elapsed(gpu_transpose_time));
+    
+    for(int i = 0; i < n * m; i++)
+        if(gpu_result[i] != cpu_result[i]){
+            fprintf(stderr, "Performance: transpose is not correct.\n");
+            exit(1);
+        }
+    printf("Performance test: all good.\n");
+    free(gpu_result);
+    free(cpu_result);
+}
+
+
+
+void test_correctness(void){
     int n = 3, m = 3;
     float A[] = {1, 2, 3,
                  4, 5, 6,
@@ -68,12 +128,29 @@ int main(void){
     // check the result is correct
     for(int i = 0; i < n*m; i++){
         if(A_check[i] != result[i]){
-            std::cerr << "Transpose is not correct." << std::endl;
-            delete[] result;
-            return 1;
+            fprintf(stderr, "Transpose is not correct.\n");
+            free(result);
+            exit(1);
         }
     }
-    delete[] result;
-    std::cout << "All good." << std::endl;
+    free(result);
+    printf("Correctness test: all good.\n");
+}
+
+
+
+int main(int argc, char **argv){
+    int n = 1e3;
+    int m = 1e2;
+    if (argc >= 3){
+        n = atoi(argv[1]);
+        m = atoi(argv[2]);
+    }else{
+        printf("Using defaults n = 1000, m = 100 for performance testing.\nTo change behaviour, %s [m n]\n\n", argv[0]);
+    }
+    // The following call is done to initialise CUDA here and not to include CUDA initialisation in subsequent calls, which we are timing.
+    CUDA_CHECK_ERROR(cudaSetDevice(0));
+    test_correctness();
+    test_performance(n, m);
     return 0;
 }

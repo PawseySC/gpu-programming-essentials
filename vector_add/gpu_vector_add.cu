@@ -1,5 +1,5 @@
-#include <cstdlib>
-#include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
 
 
 
@@ -9,6 +9,24 @@
         exit(1);\
     }\
 })
+
+
+
+#define MALLOC_CHECK_ERROR(X)({\
+    if ((X) == 0){\
+        fprintf(stderr, "Malloc error (%s:%d): %i\n", __FILE__, __LINE__, (X));\
+        exit(1);\
+    }\
+})
+
+
+// Returns True if |a - b| <= eps
+inline bool compare_float(float a, float b){
+    const float eps = 1e-7f;
+    if (a  > b) return a - b <= eps;
+    else return b - a <= eps;
+}
+
 
 
 // Initialise the vector v of n elements to random values
@@ -29,9 +47,10 @@ __global__ void vector_add(float *a, float *b, float *c, int n){
 
 int main(void){
     int n = 100;
-    float *A = new float[n];
-    float *B = new float[n];
-    float *C = new float[n];
+    float *A = (float*) malloc(n * sizeof(float));
+    float *B = (float*) malloc(n * sizeof(float));
+    float *C = (float*) malloc(n * sizeof(float));
+    MALLOC_CHECK_ERROR(A && B && C);
     init_vec(A, n);
     init_vec(B, n);
     float *dev_A, *dev_B, *dev_C;
@@ -47,23 +66,24 @@ int main(void){
     
     // check the result is correct
     for(int i = 0; i < n; i++){
-        if(C[i] != A[i] + B[i]){
-            std::cerr << "Sum is not correct." << std::endl;
+        bool sums_equal = compare_float(C[i], A[i] + B[i]);
+        if(!sums_equal){
+            fprintf(stderr, "Sum is not correct.\n");
             cudaFree(dev_A);
             cudaFree(dev_B);
             cudaFree(dev_C);
-            delete[] A;
-            delete[] B;
-            delete[] C;
+            free(A);
+            free(B);
+            free(C);
             return 1;
         }
     }
     CUDA_CHECK_ERROR(cudaFree(dev_A));
     CUDA_CHECK_ERROR(cudaFree(dev_B));
     CUDA_CHECK_ERROR(cudaFree(dev_C));
-    delete[] A;
-    delete[] B;
-    delete[] C;
-    std::cout << "All good." << std::endl;
+    free(A);
+    free(B);
+    free(C);
+    printf("All good.\n");
     return 0;
 }
