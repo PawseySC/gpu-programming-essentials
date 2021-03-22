@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <cuda_runtime.h>
 #include <cublas_v2.h>
+#include "../common/array.h"
+
 
 // prints error if detected and exits 
 #define CUDA_CHECK_ERROR(X)({\
@@ -28,27 +28,10 @@
 })
 
 
-// prints start and end of float array
-void printArrayTerse(float* array, int length, int num){
-	if (length < 2 * num)
-        num = length/2;
-	for (int i=0; i<num; i++){
-		printf("%.0f ",array[i]);
-	}
-	printf("... ");
-    for (int i=length-num; i<length; i++){
-        printf("%.0f ",array[i]);
-    }
-    printf("\n");
-}
-
-
 
 // add two vectors
 int main(int argc, char** argv){
 	// variable declarations
-	cudaError_t err;                 // variable for error codes
-    cublasStatus_t status;           // variable for cublas status
     cublasHandle_t handle;           // variable for cublas handle
     int device;                      // current device id
     struct cudaDeviceProp prop;      // current device properties
@@ -81,9 +64,9 @@ int main(int argc, char** argv){
 
     // print host memory values for all arrays
 	printf("Array A: ");
-	printArrayTerse(hostArrayA, length, 8);
+	print_array_terse(hostArrayA, length, 8);
     printf("Array B: ");
-    printArrayTerse(hostArrayB, length, 8);
+    print_array_terse(hostArrayB, length, 8);
 
 	// prepare cuBLAS context
     CUBLAS_CHECK_ERROR(cublasCreate(&handle));
@@ -109,7 +92,7 @@ int main(int argc, char** argv){
 
 	// print host memory values for array C
     printf("Array B: ");
-    printArrayTerse(hostArrayB, length, 8);
+    print_array_terse(hostArrayB, length, 8);
 
 	// free device memory
     CUDA_CHECK_ERROR(cudaFree(deviceArrayA));

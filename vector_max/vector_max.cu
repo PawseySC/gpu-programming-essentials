@@ -1,13 +1,24 @@
-#include <cstdlib>
-#include <iostream>
-#include <chrono>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include "../common/timer.h"
 
 
 #define NTHREADS 1024
+
+
+
 #define CUDA_CHECK_ERROR(X)({\
     if((X) != cudaSuccess){\
         fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString((X)));\
+        exit(1);\
+    }\
+})
+
+
+
+#define MALLOC_CHECK_ERROR(X)({\
+    if ((X) == 0){\
+        fprintf(stderr, "Malloc error (%s:%d): %i\n", __FILE__, __LINE__, (X));\
         exit(1);\
     }\
 })
@@ -31,12 +42,17 @@ int vector_max_driver(int *v, int n){
     CUDA_CHECK_ERROR(cudaMalloc(&dev_v, sizeof(int) * n));
     CUDA_CHECK_ERROR(cudaMalloc(&dev_max, sizeof(int)));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_v, v, sizeof(int) * n, cudaMemcpyHostToDevice));
-    // TODO: set the max as the first element of the array
-    
+    // set the max as the first element of the array
+    CUDA_CHECK_ERROR(cudaMemcpy(dev_max, v, sizeof(int), cudaMemcpyHostToDevice));
     // setup kernel configuration
     unsigned int nBlocks = (n + NTHREADS - 1) / NTHREADS;
+    ptimer_t kernel_timer;
+    timer_start(&kernel_timer);
     vector_max<<<nBlocks, NTHREADS>>>(dev_v, dev_max, n);
     CUDA_CHECK_ERROR(cudaGetLastError());
+    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    timer_stop(&kernel_timer);
+    printf("'vector_max' kernel execution time (ms): %.3lf\n", timer_elapsed(kernel_timer));
     CUDA_CHECK_ERROR(cudaMemcpy(&max, dev_max, sizeof(int), cudaMemcpyDeviceToHost));
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
     CUDA_CHECK_ERROR(cudaFree(dev_v));
@@ -52,32 +68,41 @@ void test_correctness(void){
     int max_check = 340;
     int result = vector_max_driver(v, n);
     if(max_check != result){
-        std::cerr << "Max is not correct." << std::endl;
+        fprintf(stderr, "Max is not correct.\n");
         exit(1);
     }
-    std::cout << "Correctness: all good." << std::endl;
+    printf("Correctness test: all good.\n");
 }
 
 
 
 void test_performance(void){
     int n = 1e9;
-    int *v = new int[n];
+    int *v = (int *) malloc(sizeof(int) * n);
+    MALLOC_CHECK_ERROR(v);
     int max_check = -1;
     for(int i = 0; i < n; i++){
         v[i] = rand() % 3054;
+    }
+    ptimer_t cpu_timer;
+    timer_start(&cpu_timer);
+    for(int i = 0; i < n; i++){
         if(v[i] > max_check) max_check = v[i];
     }
-    auto start = std::chrono::system_clock::now();
+    timer_stop(&cpu_timer);
+    printf("Execution time on CPU (ms): %.3lf\n", timer_elapsed(cpu_timer));
+    ptimer_t gpu_timer;
+    timer_start(&gpu_timer);
     int result = vector_max_driver(v, n);
-    auto end = std::chrono::system_clock::now();
+    free(v);
+    timer_stop(&gpu_timer);
+    printf("Execution time on GPU (ms): %.3lf\n", timer_elapsed(gpu_timer));
     if(max_check != result){
-        std::cerr << "Performance: max is not correct." << std::endl;
+        fprintf(stderr, "Performance test: max is not correct!\n");
         exit(1);
-    }
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    std::cout << "Performance: all good. Time: " << elapsed << " ms." << std::endl;
+    }else{
+        printf("Peformance test: all good.\n");
+    }    
 }
 
 
