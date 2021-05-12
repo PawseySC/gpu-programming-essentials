@@ -5,7 +5,7 @@
 
 #define CUDA_CHECK_ERROR(X)({\
     if((X) != cudaSuccess){\
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString((X)));\
+        fprintf(stderr, "CUDA error %d (%s:%d): %s\n", (X),  __FILE__, __LINE__, cudaGetErrorString((cudaError_t)(X)));\
         exit(1);\
     }\
 })
@@ -39,14 +39,15 @@ void init_vec(float *v, int n){
 
 // kernel to perform vector addition
 __global__ void vector_add(float *a, float *b, float *c, int n){
-    unsigned int i = threadIdx.x;
-    c[i] = a[i] + b[i];
+    unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < n)
+        c[i] = a[i] + b[i];
 }
 
 
 
 int main(void){
-    int n = 100;
+    int n = 2000;
     float *A = (float*) malloc(n * sizeof(float));
     float *B = (float*) malloc(n * sizeof(float));
     float *C = (float*) malloc(n * sizeof(float));
@@ -59,8 +60,11 @@ int main(void){
     CUDA_CHECK_ERROR(cudaMalloc(&dev_C, sizeof(float) * n));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n, cudaMemcpyHostToDevice));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_B, B, sizeof(float) * n, cudaMemcpyHostToDevice));
-    vector_add<<<1, n>>>(dev_A, dev_B, dev_C, n);
-    CUDA_CHECK_ERROR(cudaGetLastError());
+    int nThreads = 1024;
+    int nBlocks = (n + nThreads - 1) / nThreads;
+    vector_add<<<nBlocks, 1025>>>(dev_A, dev_B, dev_C, n);
+    CUDA_CHECK_ERROR((cudaError_t)cudaGetLastError());
+    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
     CUDA_CHECK_ERROR(cudaMemcpy(C, dev_C, sizeof(float) * n, cudaMemcpyDeviceToHost));
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
     

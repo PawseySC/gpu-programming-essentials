@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include "../common/timer.h"
 
-
 #define NTHREADS 1024
+
+
 
 #define CUDA_CHECK_ERROR(X)({\
     if((X) != cudaSuccess){\
@@ -11,6 +12,7 @@
         exit(1);\
     }\
 })
+
 
 
 #define MALLOC_CHECK_ERROR(X)({\
@@ -21,7 +23,7 @@
 })
 
 
-// The following is the CPU implementation of matrix transpose.
+
 float *cpu_matrix_transpose(float *a_in, int m, int n){
     float *a_trans = (float*) malloc(sizeof(float) * n * m);
     for(int row = 0; row < n; row++){
@@ -44,10 +46,10 @@ float *cpu_matrix_transpose(float *a_in, int m, int n){
 */
 __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
     unsigned int idx_in = blockDim.x * blockIdx.x + threadIdx.x;
-    if (idx_in < m * n){
-        int row = idx_in / n;
-        int col = idx_in % n;
-        unsigned int idx_trans =  col * m + row; // TODO: complete here
+    if (idx_in < n * m){
+        unsigned int row = idx_in / n;
+        unsigned int col = idx_in % n;
+        unsigned int idx_trans = col * m + row;
         a_trans[idx_trans] = a_in[idx_in];
     }
 }
@@ -58,7 +60,7 @@ __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
  * Computes the transpose of the 2D matrix A of m rows and n columns.
  * Returns A_transposed, a matrix of n rows and m columns.
  */ 
- float* matrix_transpose_driver(float *A, int m, int n){
+float* matrix_transpose_driver(float *A, int m, int n){
     float *dev_A, *dev_A_transposed, *A_transposed;
     CUDA_CHECK_ERROR(cudaMalloc(&dev_A, sizeof(float) * n * m));
     CUDA_CHECK_ERROR(cudaMalloc(&dev_A_transposed, sizeof(float) * n * m));
