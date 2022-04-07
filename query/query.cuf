@@ -1,0 +1,39 @@
+program query
+    use cudafor
+    implicit none
+
+    integer :: n_devices, i, istat
+    type(cudadeviceprop) :: prop
+
+    ! get the number of devices
+    istat = cudaGetDeviceCount(n_devices)
+    write (*, "(A30, I1)") "Number of devices: ", n_devices
+
+    do i = 0, n_devices - 1
+        ! get properties for the ith device
+        istat = cudaGetDeviceProperties(prop, i)
+
+        write (*, "(A30, I1)") "Device number: ", i
+        write (*, "(A30, A30)") "Device name: ", prop%name(1:)
+        write (*, "(A30, F5.2, A3)") "Total global memory: ", real(prop%totalGlobalMem) / 1e9, " GB"
+        write (*, "(A30, I5, A6)") "sharedMemPerBlock: " ,prop%sharedMemPerBlock, " bytes"
+        write (*, "(A30, I5)") "regsPerBlock: " ,prop%regsPerBlock
+        write (*, "(A30, I2)") "warpSize: " ,prop%warpSize
+        write (*, "(A30, I4)") "maxThreadsPerBlock: " ,prop%maxThreadsPerBlock
+        write (*, "(A30, I4, I5, I3)") "maxThreadsDim: " ,prop%maxThreadsDim
+        write (*, "(A30, I10, I6, I6)") "maxGridSize: " ,prop%maxGridSize
+        write (*, "(A30, F4.2, A4)") "ClockRate: " ,real(prop%clockRate)/1e6," GHz"
+        write (*, "(A30, I5, A6)") "Total Const Memory: " ,prop%totalConstMem," bytes"
+        write (*, "(A30, I1, I1)") "Compute Capability Revision: ",prop%major,prop%minor
+        write (*, "(A30, I3, A6)") "TextureAlignment: " ,prop%textureAlignment," bytes"
+        write (*, "(A30, I1)") "deviceOverlap: " ,prop%deviceOverlap
+        write (*, "(A30, I2)") "multiProcessorCount: ",prop%multiProcessorCount
+        write (*, "(A30, I1)") "integrated: " ,prop%integrated
+        write (*, "(A30, I1)") "canMapHostMemory: " ,prop%canMapHostMemory
+        write (*, "(A30, I1)") "ECCEnabled: " ,prop%ECCEnabled
+        write (*, "(A30, I1)") "UnifiedAddressing: " ,prop%unifiedAddressing
+        write (*, "(A30, I7)") "L2 Cache Size: " ,prop%l2CacheSize
+        write (*, "(A30, I4)") "maxThreadsPerSMP: " ,prop%maxThreadsPerMultiProcessor
+    end do
+
+end program query
