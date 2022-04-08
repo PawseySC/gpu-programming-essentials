@@ -1,0 +1,57 @@
+
+attributes(global) subroutine vector_add(A, B, C, n)
+    implicit none
+    integer, intent(in), value :: n
+    real(kind = 4), dimension(n), intent(in) :: A, B
+    real(kind = 4), dimension(n), intent(out) :: C
+    
+    integer :: idx
+    idx = (blockidx%x - 1) * blockdim%x + threadidx%x
+
+    if (idx <= n) then
+        C(idx) = A(idx) + B(idx)
+    end if
+end subroutine vector_add
+
+
+program gpu_vector_add
+    use cudafor
+    implicit none
+    integer, parameter :: n = 1000, n_threads = 1024
+    
+    real(kind = 4), dimension(:), allocatable :: A, B, C
+    real(kind = 4), dimension(:), allocatable, device :: dev_A, dev_B, dev_C
+    
+    integer :: istat, n_blocks
+
+    ! allocate on main memory (CPU)
+    allocate(A(n), B(n), C(n))
+    ! allocate on GPU memory
+    allocate(dev_A(n), dev_B(n), dev_C(n))
+
+    ! initialize arrays on CPU
+    call random_number(A)
+    call random_number(B)
+
+    ! copy data on GPU
+    dev_A = A
+    istat = cudaMemcpy(dev_B, B, n)
+
+    n_blocks = (n + n_threads - 1) / n_threads
+    
+    call vector_add<<<n_blocks, n_threads>>>(dev_A, dev_B, dev_C, n)
+    istat = cudaGetLastError()
+    ! sync to check for errors
+    istat = cudaDeviceSynchronize()
+    C = dev_C
+    ! sync to ensure copy is completed
+    istat = cudaDeviceSynchronize()
+    
+    if (count(C /= A + B) > 0) then
+        print *, "Error! The output is not correct."
+        stop
+    end if
+
+    deallocate (A, B, C, dev_A, dev_B, dev_C)
+    print *, "All good."
+end program gpu_vector_add

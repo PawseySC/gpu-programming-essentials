@@ -3,11 +3,16 @@
 
 
 
+void __cuda_check_error(cudaError_t err, const char *file, int line){
+	if(err != cudaSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+
 #define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "CUDA error %d (%s:%d): %s\n", (X),  __FILE__, __LINE__, cudaGetErrorString((cudaError_t)(X)));\
-        exit(1);\
-    }\
+	__cuda_check_error((X), __FILE__, __LINE__);\
 })
 
 
@@ -47,7 +52,7 @@ __global__ void vector_add(float *a, float *b, float *c, int n){
 
 
 int main(void){
-    int n = 2000;
+    const int n = 2000;
     float *A = (float*) malloc(n * sizeof(float));
     float *B = (float*) malloc(n * sizeof(float));
     float *C = (float*) malloc(n * sizeof(float));
@@ -60,8 +65,8 @@ int main(void){
     CUDA_CHECK_ERROR(cudaMalloc(&dev_C, sizeof(float) * n));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n, cudaMemcpyHostToDevice));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_B, B, sizeof(float) * n, cudaMemcpyHostToDevice));
-    int nThreads = 1024;
-    int nBlocks = (n + nThreads - 1) / nThreads;
+    const int nThreads = 1024;
+    const int nBlocks = (n + nThreads - 1) / nThreads;
     vector_add<<<nBlocks, 1025>>>(dev_A, dev_B, dev_C, n);
     CUDA_CHECK_ERROR((cudaError_t)cudaGetLastError());
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());

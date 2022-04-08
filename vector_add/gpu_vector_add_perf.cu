@@ -5,11 +5,16 @@
 
 
 
+void __cuda_check_error(cudaError_t err, const char *file, int line){
+	if(err != cudaSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+
 #define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString((X)));\
-        exit(1);\
-    }\
+	__cuda_check_error((X), __FILE__, __LINE__);\
 })
 
 
