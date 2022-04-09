@@ -1,0 +1,121 @@
+module cuda_vector_add
+    use cudafor
+    implicit none
+    
+    contains
+    attributes(global) subroutine vector_add(A, B, C, n)
+        implicit none
+        integer, intent(in), value :: n
+        real, dimension(n), intent(in) :: A, B
+        real, dimension(n), intent(out) :: C
+        
+        integer :: idx
+        idx = (blockidx%x - 1) * blockdim%x + threadidx%x
+
+        if (idx <= n) then
+            C(idx) = A(idx) + B(idx)
+        end if
+    end subroutine vector_add
+
+    subroutine cuda_check_error(err)
+        implicit none
+        integer :: err
+        if (err /= cudaSuccess) then
+            print *, "CUDA ERROR!"
+            stop
+        end if
+
+    end subroutine cuda_check_error
+
+    subroutine vector_add_driver(A, B, C, n)
+        implicit none
+        integer, intent(in) :: n
+        real, dimension(n), intent(in) :: A, B
+        real, dimension(n), intent(out) :: C
+        real, dimension(:), allocatable, device :: dev_A, dev_B, dev_C
+        integer, parameter :: n_threads = 1024
+        integer :: n_blocks
+        type(cudaEvent) :: start, stop
+        real :: elapsed
+
+        call cuda_check_error(cudaEventCreate(start))
+        call cuda_check_error(cudaEventCreate(stop))
+        
+        allocate(dev_A(n), dev_B(n), dev_C(n))
+        dev_A = A; dev_B = B;
+        n_blocks = (n + n_threads - 1) / n_threads
+        call cuda_check_error(cudaEventRecord(start, 0))
+        call vector_add<<<n_blocks, n_threads>>>(dev_A, dev_B, dev_C, n)
+        call cuda_check_error(cudaGetLastError())
+        call cuda_check_error(cudaEventRecord(stop, 0))
+        C = dev_C
+        call cuda_check_error(cudaDeviceSynchronize())
+        call cuda_check_error(cudaEventElapsedTime(elapsed, start, stop))       
+        print '("CUDA kernel elapsed time: ", f6.3, "s")', elapsed / 1000.0
+        deallocate(dev_A(n), dev_B(n), dev_C(n))
+        call cuda_check_error(cudaEventDestroy(start))
+        call cuda_check_error(cudaEventDestroy(stop))
+    end subroutine vector_add_driver
+
+end module cuda_vector_add
+
+program gpu_vector_add_perf
+    use cuda_vector_add
+    implicit none
+    call test_correctness()
+    print *, "correctness: all good."
+    call test_performance(int(1e9))
+
+contains
+
+    subroutine test_correctness()
+        implicit none
+        integer, parameter :: n = 100
+        real, dimension(n) :: A, B, C
+        integer :: i
+
+        do i = 1, 100
+            A(i) = i
+            B(i) = n - i
+        end do
+
+        call vector_add_driver(A, B, C, n)
+        if(count(C /= n) > 0) then
+            print *, "Did not pass correctness test."
+            stop
+        end if
+    end subroutine test_correctness
+
+
+    subroutine test_performance(n)
+        implicit none
+        integer, intent(in) :: n
+        real, dimension(:), allocatable :: A, B, C_cpu, C_gpu
+        real :: time_start, time_finish
+        allocate(A(n), B(n), C_cpu(n), C_gpu(n))
+
+        call random_number(A)
+        call random_number(B)
+
+        ! run on gpu
+        call cpu_time(time_start)
+        call vector_add_driver(A, B, C_gpu, n)
+        call cpu_time(time_finish)
+        print '("vector_add_driver execution time: ", f6.3, "s")', time_finish - time_start
+
+        ! run on cpu
+        call cpu_time(time_start)
+        C_cpu = A + B
+        call cpu_time(time_finish)
+        print '("CPU vector addition execution time: ", f10.3, "s")', time_finish - time_start
+
+        if(count(C_cpu /= C_gpu) > 0) then
+            print *, "Performance test results are not correct."
+            stop
+        end if
+
+        deallocate(A, B, C_cpu, C_gpu)
+    end subroutine test_performance
+
+
+end program gpu_vector_add_perf

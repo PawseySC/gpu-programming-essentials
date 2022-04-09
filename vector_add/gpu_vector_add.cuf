@@ -2,8 +2,8 @@
 attributes(global) subroutine vector_add(A, B, C, n)
     implicit none
     integer, intent(in), value :: n
-    real(kind = 4), dimension(n), intent(in) :: A, B
-    real(kind = 4), dimension(n), intent(out) :: C
+    real, dimension(n), intent(in) :: A, B
+    real, dimension(n), intent(out) :: C
     
     integer :: idx
     idx = (blockidx%x - 1) * blockdim%x + threadidx%x
@@ -19,8 +19,8 @@ program gpu_vector_add
     implicit none
     integer, parameter :: n = 1000, n_threads = 1024
     
-    real(kind = 4), dimension(:), allocatable :: A, B, C
-    real(kind = 4), dimension(:), allocatable, device :: dev_A, dev_B, dev_C
+    real, dimension(:), allocatable :: A, B, C
+    real, dimension(:), allocatable, device :: dev_A, dev_B, dev_C
     
     integer :: istat, n_blocks
 
