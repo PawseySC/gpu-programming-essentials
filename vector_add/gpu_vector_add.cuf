@@ -6,24 +6,34 @@ attributes(global) subroutine vector_add(A, B, C, n)
     real, dimension(n), intent(out) :: C
     
     integer :: idx
-    idx = (blockidx%x - 1) * blockdim%x + threadidx%x
+    idx = threadidx%x
 
-    if (idx <= n) then
-        C(idx) = A(idx) + B(idx)
-    end if
+    C(idx) = A(idx) + B(idx)
+    
 end subroutine vector_add
+
+
+subroutine cuda_check_error(err)
+    use cudafor
+    implicit none
+    integer :: err
+    if (err /= cudaSuccess) then
+        print *, "CUDA ERROR: ", cudaGetErrorString(err)
+        stop
+    end if
+end subroutine cuda_check_error
 
 
 program gpu_vector_add
     use cudafor
     implicit none
-    integer, parameter :: n = 1000, n_threads = 1024
+    integer, parameter :: n = 1000
     real, parameter :: delta = 1e-7
     
     real, dimension(:), allocatable :: A, B, C_gpu, C_cpu
     real, dimension(:), allocatable, device :: dev_A, dev_B, dev_C
     
-    integer :: istat, n_blocks, i
+    integer :: n_blocks, i
 
     ! allocate on main memory (CPU)
     allocate(A(n), B(n), C_cpu(n), C_gpu(n))
@@ -36,17 +46,15 @@ program gpu_vector_add
 
     ! copy data on GPU
     dev_A = A
-    istat = cudaMemcpy(dev_B, B, n)
-
-    n_blocks = (n + n_threads - 1) / n_threads
+    call cuda_check_error(cudaMemcpy(dev_B, B, n))
     
-    call vector_add<<<n_blocks, n_threads>>>(dev_A, dev_B, dev_C, n)
-    istat = cudaGetLastError()
+    call vector_add<<<1, n>>>(dev_A, dev_B, dev_C, n)
+    call cuda_check_error(cudaGetLastError())
     ! sync to check for errors
-    istat = cudaDeviceSynchronize()
+    call cuda_check_error(cudaDeviceSynchronize())
     C_gpu = dev_C
     ! sync to ensure copy is completed
-    istat = cudaDeviceSynchronize()
+    call cuda_check_error(cudaDeviceSynchronize())
     
     ! perform the same computation on CPU
     C_cpu = A + B

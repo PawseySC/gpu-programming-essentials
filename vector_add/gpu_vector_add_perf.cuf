@@ -3,6 +3,7 @@ module cuda_vector_add
     implicit none
     
     contains
+
     attributes(global) subroutine vector_add(A, B, C, n)
         implicit none
         integer, intent(in), value :: n
@@ -17,15 +18,19 @@ module cuda_vector_add
         end if
     end subroutine vector_add
 
+
+
     subroutine cuda_check_error(err)
+        use cudafor
         implicit none
         integer :: err
         if (err /= cudaSuccess) then
-            print *, "CUDA ERROR!"
+            print *, "CUDA ERROR: ", cudaGetErrorString(err)
             stop
         end if
-
     end subroutine cuda_check_error
+
+
 
     subroutine vector_add_driver(A, B, C, n)
         implicit none
@@ -58,6 +63,8 @@ module cuda_vector_add
     end subroutine vector_add_driver
 
 end module cuda_vector_add
+
+
 
 program gpu_vector_add_perf
     use cuda_vector_add
