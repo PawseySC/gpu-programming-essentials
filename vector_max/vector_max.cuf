@@ -1,0 +1,127 @@
+module cuda_vector_max
+    use cudafor
+    implicit none
+    
+    contains
+    attributes(global) subroutine vector_max(A, n, m)
+        implicit none
+        integer, intent(in), value :: n
+        integer, dimension(n), intent(in) :: A
+        integer, intent(out) :: m
+        
+        integer, shared, dimension(0 : warpsize-1) :: block_max
+
+        integer :: idx, lane_id, warp_id, retval
+        idx = (blockidx%x - 1) * blockdim%x + threadidx%x
+        lane_id = mod(threadIdx%x - 1, warpsize)
+        warp_id = (threadIdx%x - 1) / warpsize
+    
+        if (idx <= n .and. lane_id == 0) block_max(warp_id) = A(idx)
+        call syncthreads()
+        
+        ! Continue here
+    end subroutine vector_max
+
+    subroutine cuda_check_error(err)
+        implicit none
+        integer :: err
+        if (err /= cudaSuccess) then
+            print *, "CUDA ERROR!"
+            stop
+        end if
+
+    end subroutine cuda_check_error
+
+    subroutine vector_max_driver(A, n, m)
+        implicit none
+        integer, intent(in) :: n
+        integer, dimension(n), intent(in) :: A
+        integer, intent(out) :: m
+        integer, device :: dev_m
+        integer, dimension(:), allocatable, device :: dev_A
+        integer, parameter :: n_threads = 1024
+        integer :: n_blocks
+        type(cudaEvent) :: start, stop
+        real :: elapsed
+
+        call cuda_check_error(cudaEventCreate(start))
+        call cuda_check_error(cudaEventCreate(stop))
+        allocate(dev_A(n))
+        dev_A = A
+        dev_m = A(1) ! set first element as max
+        n_blocks = (n + n_threads - 1) / n_threads
+        call cuda_check_error(cudaEventRecord(start, 0))
+        call vector_max<<<n_blocks, n_threads>>>(dev_A, n, dev_m)
+        call cuda_check_error(cudaGetLastError())
+        call cuda_check_error(cudaEventRecord(stop, 0))
+        m = dev_m
+        call cuda_check_error(cudaDeviceSynchronize())
+        call cuda_check_error(cudaEventElapsedTime(elapsed, start, stop))       
+        print '("CUDA kernel elapsed time: ", f6.3, "s")', elapsed / 1000.0
+        deallocate(dev_A)
+        call cuda_check_error(cudaEventDestroy(start))
+        call cuda_check_error(cudaEventDestroy(stop))
+    end subroutine vector_max_driver
+
+end module cuda_vector_max
+
+program gpu_vector_max
+    use cuda_vector_max
+    implicit none
+    call test_correctness()
+    print *, "correctness: all good."
+    call test_performance(int(1e9))
+
+contains
+
+    subroutine test_correctness()
+        implicit none
+        integer, parameter :: n = 10
+        integer, dimension(n) :: A
+        integer :: result
+
+        A = [1, 2, 3, 340, 4, 5, 6, 7, 8, 9]
+        result = 0
+        call vector_max_driver(A, n, result)
+        if (result /= 340) then
+            print *, "Did not pass correctness test, result is: ", result
+            stop
+        end if
+    end subroutine test_correctness
+
+
+    subroutine test_performance(n)
+        implicit none
+        integer, intent(in) :: n
+        integer, dimension(:), allocatable :: A
+        real, dimension(:), allocatable :: A_tmp
+        real :: time_start, time_finish
+        integer :: i, max_gpu, max_cpu
+
+        allocate(A(n), A_tmp(n))
+
+        call random_number(A_tmp)
+        A = int(A_tmp * 100)
+
+        ! run on gpu
+        call cpu_time(time_start)
+        call vector_max_driver(A, n, max_gpu)
+        call cpu_time(time_finish)
+        print '("vector_max_driver execution time: ", f6.3, "s")', time_finish - time_start
+
+        ! run on cpu
+        call cpu_time(time_start)
+        max_cpu = maxval(A)
+        call cpu_time(time_finish)
+        print '("CPU vector max execution time: ", f10.3, "s")', time_finish - time_start
+        
+        
+        if(max_cpu /= max_gpu) then
+            print *, "Performance test results are not correct."
+            stop
+        end if
+
+        deallocate(A, A_tmp)
+    end subroutine test_performance
+
+end program gpu_vector_max
