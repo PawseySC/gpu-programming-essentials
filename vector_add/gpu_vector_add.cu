@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
+#define NTHREADS 1024
 
 void __cuda_check_error(cudaError_t err, const char *file, int line){
 	if(err != cudaSuccess){
@@ -65,9 +65,8 @@ int main(void){
     CUDA_CHECK_ERROR(cudaMalloc(&dev_C, sizeof(float) * n));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n, cudaMemcpyHostToDevice));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_B, B, sizeof(float) * n, cudaMemcpyHostToDevice));
-    const int nThreads = 1024;
-    const int nBlocks = (n + nThreads - 1) / nThreads;
-    vector_add<<<nBlocks, 1025>>>(dev_A, dev_B, dev_C, n);
+    const int nBlocks = (n + NTHREADS - 1) / NTHREADS;
+    vector_add<<<nBlocks, NTHREADS>>>(dev_A, dev_B, dev_C, n);
     CUDA_CHECK_ERROR((cudaError_t)cudaGetLastError());
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
     CUDA_CHECK_ERROR(cudaMemcpy(C, dev_C, sizeof(float) * n, cudaMemcpyDeviceToHost));

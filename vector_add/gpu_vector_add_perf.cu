@@ -3,6 +3,7 @@
 #include "../common/timer.h"
 #include "../common/array.h"
 
+#define NTHREADS 1024
 
 
 void __cuda_check_error(cudaError_t err, const char *file, int line){
@@ -70,19 +71,25 @@ void vector_add_driver(float *A, float *B, float *C, int n){
     CUDA_CHECK_ERROR(cudaMalloc(&dev_C, sizeof(float) * n));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n, cudaMemcpyHostToDevice));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_B, B, sizeof(float) * n, cudaMemcpyHostToDevice));
-    int nblocks = (n + 1023) / 1024;
-    ptimer_t kernel_timer;
-    timer_start(&kernel_timer);
-    vector_add<<<nblocks, 1024>>>(dev_A, dev_B, dev_C, n);
+    const int nblocks = (n + NTHREADS - 1) / NTHREADS;
+    cudaEvent_t start, stop;
+    CUDA_CHECK_ERROR(cudaEventCreate(&start));
+    CUDA_CHECK_ERROR(cudaEventCreate(&stop));
+    CUDA_CHECK_ERROR(cudaEventRecord(start));
+    vector_add<<<nblocks, NTHREADS>>>(dev_A, dev_B, dev_C, n);
     CUDA_CHECK_ERROR(cudaGetLastError());
+    CUDA_CHECK_ERROR(cudaEventRecord(stop));
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
-    timer_stop(&kernel_timer);
-    printf("'vector_sum' kernel execution time (ms): %.3lf\n", timer_elapsed(kernel_timer));
+    float elapsed;
+    CUDA_CHECK_ERROR(cudaEventElapsedTime(&elapsed, start, stop));
+    printf("'vector_sum' kernel execution time (ms): %.3lf\n", elapsed);
     CUDA_CHECK_ERROR(cudaMemcpy(C, dev_C, sizeof(float) * n, cudaMemcpyDeviceToHost));
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
     CUDA_CHECK_ERROR(cudaFree(dev_A));
     CUDA_CHECK_ERROR(cudaFree(dev_B));
     CUDA_CHECK_ERROR(cudaFree(dev_C));
+    CUDA_CHECK_ERROR(cudaEventDestroy(start));
+    CUDA_CHECK_ERROR(cudaEventDestroy(stop));
 }
 
 

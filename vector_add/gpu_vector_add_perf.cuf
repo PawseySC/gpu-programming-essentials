@@ -71,27 +71,34 @@ contains
     subroutine test_correctness()
         implicit none
         integer, parameter :: n = 100
+        real, parameter :: delta = 1e-7
         real, dimension(n) :: A, B, C
         integer :: i
 
-        do i = 1, 100
+        do i = 1, n
             A(i) = i
             B(i) = n - i
         end do
 
         call vector_add_driver(A, B, C, n)
-        if(count(C /= n) > 0) then
-            print *, "Did not pass correctness test."
-            stop
-        end if
+
+        do i = 1, n
+            if(abs(C(i) - n) >= delta) then
+                print *, "Did not pass correctness test."
+                stop
+            end if
+        end do
     end subroutine test_correctness
 
 
     subroutine test_performance(n)
         implicit none
         integer, intent(in) :: n
+        real, parameter :: delta = 1e-7
         real, dimension(:), allocatable :: A, B, C_cpu, C_gpu
         real :: time_start, time_finish
+        integer :: i
+
         allocate(A(n), B(n), C_cpu(n), C_gpu(n))
 
         call random_number(A)
@@ -108,14 +115,15 @@ contains
         C_cpu = A + B
         call cpu_time(time_finish)
         print '("CPU vector addition execution time: ", f10.3, "s")', time_finish - time_start
-
-        if(count(C_cpu /= C_gpu) > 0) then
-            print *, "Performance test results are not correct."
-            stop
-        end if
+        
+        do i = 1, n
+            if(abs(C_gpu(i) - C_cpu(i)) >= delta) then
+                print *, "Performance test results are not correct."
+                stop
+            end if
+        end do
 
         deallocate(A, B, C_cpu, C_gpu)
     end subroutine test_performance
-
 
 end program gpu_vector_add_perf
