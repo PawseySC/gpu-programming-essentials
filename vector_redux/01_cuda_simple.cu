@@ -2,11 +2,17 @@
 #include <stdlib.h>
 #include <time.h>
 
+
+void __cuda_check_error(cudaError_t err, const char *file, int line){
+	if(err != cudaSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+
 #define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "ERROR %d (%s:%d): %s\n", (X), __FILE__, __LINE__, cudaGetErrorString((X)));\
-        exit(1);\
-    }\
+	__cuda_check_error((X), __FILE__, __LINE__);\
 })
 
 #define NTHREADS 1024 
@@ -22,7 +28,7 @@ __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned 
 
 int main(int argc, char **argv){
     
-    unsigned int nitems = 1e9; 
+    unsigned int nitems = 1e6; 
     unsigned char *values = (unsigned char*) malloc(sizeof(unsigned int) * nitems);
     if(!values){
         fprintf(stderr, "Error while allocating memory\n");
@@ -31,7 +37,7 @@ int main(int argc, char **argv){
     // Initialise the vector of n elements to random values
     unsigned long long correct_result = 0;
     for(int i = 0; i < nitems; i++){
-        values[i] = rand() % 256;
+        values[i] = (i + 1) % 256;
         correct_result += values[i];
     }
 
@@ -58,8 +64,8 @@ int main(int argc, char **argv){
     printf("Result: %llu - Time elapsed: %f\n", sum, time_spent/1000.0f);
     if(correct_result != sum) {
         fprintf(stderr, "Error: sum is not correct, should be %llu\n", correct_result);
-        return 1;
+        return EXIT_FAILURE;
     }
-    return 0;
+    return EXIT_SUCCESS;
 
 }

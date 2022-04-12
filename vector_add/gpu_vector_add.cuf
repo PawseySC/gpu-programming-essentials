@@ -29,11 +29,9 @@ program gpu_vector_add
     implicit none
     integer, parameter :: n = 1000
     real, parameter :: delta = 1e-7
-    
     real, dimension(:), allocatable :: A, B, C_gpu, C_cpu
     real, dimension(:), allocatable, device :: dev_A, dev_B, dev_C
-    
-    integer :: n_blocks, i
+    integer :: i
 
     ! allocate on main memory (CPU)
     allocate(A(n), B(n), C_cpu(n), C_gpu(n))

@@ -10,19 +10,40 @@
 })
 
 #define NTHREADS 1024 
-
+#define ALL_THREADS_MASK 0xffffffff
 
 
 __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    __shared__ unsigned long long partial_sum;
-    if(threadIdx.x == 0) partial_sum = 0;
-    __syncthreads();
+    __shared__ unsigned int partial_sums[warpSize];
+    unsigned int warpId = threadIdx.x / warpSize;
+    unsigned int laneId = threadIdx.x % warpSize; 
+    unsigned int myvalue = 0; 
     if(idx < nitems){ 
-        atomicAdd(&partial_sum, values[idx]);  
+        myvalue = values[idx]; 
     }
+ 
+    // step 1
+    for(unsigned int i = warpSize/2; i >= 1; i /= 2){
+        unsigned int up = __shfl_down_sync(ALL_THREADS_MASK, myvalue, i, warpSize); 
+        if(laneId < i){
+            myvalue += up; 
+        }
+    }
+    if(laneId == 0 && warpId > 0) partial_sums[warpId] = myvalue;
     __syncthreads();
-    if(threadIdx.x == 0) atomicAdd(result, partial_sum);
+    // step 2
+    if(warpId == 0){
+        if(laneId > 0) myvalue = partial_sums[laneId];
+        for(unsigned int i = warpSize/2; i >= 1; i /= 2){
+            unsigned int up = __shfl_down_sync(ALL_THREADS_MASK, myvalue, i, warpSize); 
+                if(laneId < i){
+                    myvalue += up; 
+                }
+            }
+        if(laneId == 0) atomicAdd(result, myvalue);
+    }  
+    
 }
 
 
@@ -49,6 +70,7 @@ int main(int argc, char **argv){
     CUDA_CHECK_ERROR(cudaMemset(dev_sum, 0, sizeof(unsigned long long)));
     CUDA_CHECK_ERROR(cudaMemcpy(dev_values, values, sizeof(unsigned char) * nitems, cudaMemcpyHostToDevice));
     unsigned int nblocks = (nitems + NTHREADS - 1) / NTHREADS;
+    printf("Number of cuda blocks: %u\n", nblocks);
     cudaEvent_t start, stop;
     CUDA_CHECK_ERROR(cudaEventCreate(&start));
     CUDA_CHECK_ERROR(cudaEventCreate(&stop));

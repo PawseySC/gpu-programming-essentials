@@ -2,11 +2,16 @@
 #include <stdlib.h>
 #include <time.h>
 
+void __cuda_check_error(cudaError_t err, const char *file, int line){
+	if(err != cudaSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+
 #define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "ERROR %d (%s:%d): %s\n", (X), __FILE__, __LINE__, cudaGetErrorString((X)));\
-        exit(1);\
-    }\
+	__cuda_check_error((X), __FILE__, __LINE__);\
 })
 
 #define NTHREADS 1024 
@@ -15,35 +20,18 @@
 
 __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    __shared__ unsigned int partial_sums[32];
-    unsigned int warpId = threadIdx.x / 32;
-    unsigned int laneId = threadIdx.x % 32; 
-    unsigned int myvalue = 0; 
-    if(idx < nitems){ 
-        myvalue = values[idx]; 
-    }
- 
-    // step 1
-    for(unsigned int i = 16; i >= 1; i >>= 1){
-        unsigned int up = __shfl_down_sync(0xffffffff, myvalue, i, 32); 
-        if(laneId < i){
-            myvalue += up; 
-        }
-    }
-    if(laneId == 0 && warpId > 0) partial_sums[warpId] = myvalue;
+    __shared__ unsigned int partial_sums[warpSize];
+    unsigned int warpId = threadIdx.x / warpSize;
+    unsigned int laneId = threadIdx.x % warpSize; 
+    if(laneId == 0) partial_sums[warpId] = 0;
     __syncthreads();
-    // step 2
-    if(warpId == 0){
-        if(laneId > 0) myvalue = partial_sums[laneId];
-        for(unsigned int i = 16; i >= 1; i >>= 1){
-            unsigned int up = __shfl_down_sync(0xffffffff, myvalue, i, 32); 
-                if(laneId < i){
-                    myvalue += up; 
-                }
-            }
-        if(laneId == 0) atomicAdd(result, myvalue);
-    }  
-    
+    if(idx < nitems){ 
+        atomicAdd(partial_sums + warpId, values[idx]);  
+    }
+    __syncthreads();
+    if(laneId == 0 && warpId > 0) atomicAdd(partial_sums, partial_sums[warpId]);
+    __syncthreads();
+    if(threadIdx.x == 0) atomicAdd(result, partial_sums[0]);
 }
 
 
@@ -54,12 +42,12 @@ int main(int argc, char **argv){
     unsigned char *values = (unsigned char*) malloc(sizeof(unsigned int) * nitems);
     if(!values){
         fprintf(stderr, "Error while allocating memory\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     // Initialise the vector of n elements to random values
     unsigned long long correct_result = 0;
     for(int i = 0; i < nitems; i++){
-        values[i] = rand() % 256;
+        values[i] = (i + 1) % 128;//256;
         correct_result += values[i];
     }
     unsigned long long sum = 0ull;
@@ -86,8 +74,8 @@ int main(int argc, char **argv){
     printf("Result: %llu - Time elapsed: %f\n", sum, time_spent/1000.0f);
     if(correct_result != sum) {
         fprintf(stderr, "Error: sum is not correct, should be %llu\n", correct_result);
-        return 1;
+        return EXIT_FAILURE;
     }
-    return 0;
+    return EXIT_SUCCESS;
 
 }
