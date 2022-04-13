@@ -1,0 +1,111 @@
+
+attributes(global) subroutine vector_reduction_kernel(values, n, result)
+    implicit none
+    integer, parameter :: int64 = selected_int_kind(18)
+    integer, parameter :: int8 = selected_int_kind(2)
+    integer, parameter :: int4 = selected_int_kind(6)
+    integer, intent(in), value :: n
+    integer(kind = int8), dimension(0:n-1), intent(in) :: values
+    integer(kind = int64), intent(out) :: result
+    integer(kind = int4), shared :: partial_sums(0 : 31)
+    integer(kind = int4) :: myvalue, up, tmp, idx, j, i, l, warpid, laneid, pow2(5), gridsize, nloops
+
+    idx = (blockidx%x - 1) * blockdim%x + threadidx%x - 1
+    warpid = (threadIdx%x - 1) / warpsize 
+    laneid = mod((threadIdx%x - 1),  warpsize)
+    gridsize = griddim%x * blockdim%x
+    nloops = (n + gridsize - 1) / gridsize
+    pow2 = [16, 8, 4, 2, 1]
+    myvalue = 0
+    do l = 1, nloops
+        if(idx < n) then
+            myvalue = myvalue + values(idx)
+        end if
+        idx = idx + gridsize
+    end do
+    ! step 1
+    do j = 1, 5
+        i = pow2(j)
+        up = __shfl_down(myvalue, i, warpsize)
+        if (laneid < i) then 
+            myvalue = myvalue + up
+        end if
+    end do
+    if (laneid == 0 .and. warpid > 0) partial_sums(warpid) = myvalue
+    call syncthreads()
+    ! step 2
+    if(warpid == 0) then
+        if(laneid > 0) myvalue = partial_sums(laneid)
+        do j = 1, 5
+            i = pow2(j)
+            up = __shfl_down(myvalue, i, warpsize)
+            if (laneid < i) then 
+                myvalue = myvalue + up
+            end if
+        end do
+        if(laneid == 0) tmp = atomicAdd(result, myvalue)
+    end if
+end subroutine vector_reduction_kernel
+
+
+subroutine cuda_check_error(err)
+    use cudafor
+    implicit none
+    integer :: err
+    if (err /= cudaSuccess) then
+        print *, "CUDA ERROR: ", cudaGetErrorString(err)
+        stop
+    end if
+end subroutine cuda_check_error
+
+
+program vector_reduction
+    use cudafor
+    implicit none
+    integer, parameter :: n = 1e9, n_threads = 1024, int64 = selected_int_kind(18)
+    integer, parameter :: int8 = selected_int_kind(2)
+    integer(kind = int8), dimension(:), allocatable :: values
+    integer(kind = int8), dimension(:), allocatable, device :: dev_values
+    integer(kind = int64), device :: dev_result
+    integer :: n_blocks, i
+    integer(kind = int64) :: correct_result, gpu_result
+    real :: tmp, elapsed
+    type(cudaEvent) :: start, stop
+    type(cudadeviceprop) :: prop
+    ! allocate on main memory (CPU)
+    allocate(values(n), dev_values(n))
+    dev_result = 0
+    correct_result = 0
+    ! initialize array on CPU with random value
+    do i = 1, n
+        call random_number(tmp)
+        values(i) = mod(i, 128)
+        correct_result = correct_result + values(i)
+    end do
+    call cuda_check_error(cudaEventCreate(start))
+    call cuda_check_error(cudaEventCreate(stop))
+    call cuda_check_error(cudaGetDeviceProperties(prop, 0))
+    ! copy data on GPU
+    dev_values = values
+    n_blocks = prop%multiProcessorCount * 2
+    call cuda_check_error(cudaEventRecord(start, 0))
+    call vector_reduction_kernel<<<n_blocks, n_threads>>>(dev_values, n, dev_result)
+    call cuda_check_error(cudaGetLastError())
+    call cuda_check_error(cudaEventRecord(stop, 0))
+    ! sync to check for errors
+    call cuda_check_error(cudaDeviceSynchronize())
+    gpu_result = dev_result
+    ! sync to ensure copy is completed
+    call cuda_check_error(cudaDeviceSynchronize())
+    ! check the correctness of the result 
+    if(gpu_result /= correct_result) then
+        print *, "Error: result is incorrect!"
+        stop
+    end if
+    print *, "Result is ", gpu_result
+    call cuda_check_error(cudaEventElapsedTime(elapsed, start, stop))
+    print '("Kernel execution time: ", f6.3, "(s)")', elapsed / 1000
+    deallocate (dev_values, values)
+    call cuda_check_error(cudaEventDestroy(start))
+    call cuda_check_error(cudaEventDestroy(stop))
+end program vector_reduction

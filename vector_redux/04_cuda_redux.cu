@@ -2,22 +2,27 @@
 #include <stdlib.h>
 #include <time.h>
 
+void __cuda_check_error(cudaError_t err, const char *file, int line){
+	if(err != cudaSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+
 #define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "ERROR %d (%s:%d): %s\n", (X), __FILE__, __LINE__, cudaGetErrorString((X)));\
-        exit(1);\
-    }\
+	__cuda_check_error((X), __FILE__, __LINE__);\
 })
 
 #define NTHREADS 1024 
 
 
 
-__global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
+__global__ void vector_reduction_kernel(unsigned char *values, unsigned int nitems, unsigned long long* result){
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
     __shared__ unsigned int partial_sums[NTHREADS];
-    unsigned int warpId = threadIdx.x / 32;
-    unsigned int laneId = threadIdx.x % 32; 
+    unsigned int warpId = threadIdx.x / warpSize;
+    unsigned int laneId = threadIdx.x % warpSize; 
     if(idx < nitems){ 
         partial_sums[threadIdx.x] = values[idx];  
     }else{
@@ -26,7 +31,7 @@ __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned 
     __syncthreads();
  
     // step 1
-    for(unsigned int i = 16; i >= 1; i >>= 1){
+    for(unsigned int i = warpSize/2; i >= 1; i >>= 1){
         if(laneId < i){
             partial_sums[threadIdx.x] += partial_sums[threadIdx.x + i];
         }
@@ -35,9 +40,9 @@ __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned 
     __syncthreads();
     // step 2
     if(warpId == 0){
-        for(unsigned int i = 16; i >= 1; i >>= 1){
+        for(unsigned int i = warpSize/2; i >= 1; i >>= 1){
             if(laneId < i){
-                partial_sums[32*laneId] += partial_sums[32*(laneId + i)];
+                partial_sums[warpSize*laneId] += partial_sums[warpSize*(laneId + i)];
             }
             __syncwarp();
         }
@@ -53,12 +58,12 @@ int main(int argc, char **argv){
     unsigned char *values = (unsigned char*) malloc(sizeof(unsigned int) * nitems);
     if(!values){
         fprintf(stderr, "Error while allocating memory\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     // Initialise the vector of n elements to random values
     unsigned long long correct_result = 0;
     for(int i = 0; i < nitems; i++){
-        values[i] = rand() % 256;
+        values[i] = (i + 1) % 128;
         correct_result += values[i];
     }
     unsigned long long sum = 0ull;
@@ -74,7 +79,7 @@ int main(int argc, char **argv){
     CUDA_CHECK_ERROR(cudaEventCreate(&start));
     CUDA_CHECK_ERROR(cudaEventCreate(&stop));
     CUDA_CHECK_ERROR(cudaEventRecord(start)); 
-    vector_sum<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
+    vector_reduction_kernel<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
     CUDA_CHECK_ERROR(cudaGetLastError());
     CUDA_CHECK_ERROR(cudaEventRecord(stop)); 
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
@@ -85,8 +90,8 @@ int main(int argc, char **argv){
     printf("Result: %llu - Time elapsed: %f\n", sum, time_spent/1000.0f);
     if(correct_result != sum) {
         fprintf(stderr, "Error: sum is not correct, should be %llu\n", correct_result);
-        return 1;
+        return EXIT_FAILURE;
     }
-    return 0;
+    return EXIT_SUCCESS;
 
 }

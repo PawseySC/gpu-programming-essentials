@@ -18,7 +18,7 @@ void __cuda_check_error(cudaError_t err, const char *file, int line){
 
 
 
-__global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
+__global__ void vector_reduction_kernel(unsigned char *values, unsigned int nitems, unsigned long long* result){
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
     __shared__ unsigned long long partial_sum;
     if(threadIdx.x == 0) partial_sum = 0;
@@ -58,7 +58,7 @@ int main(int argc, char **argv){
     CUDA_CHECK_ERROR(cudaEventCreate(&start));
     CUDA_CHECK_ERROR(cudaEventCreate(&stop));
     CUDA_CHECK_ERROR(cudaEventRecord(start)); 
-    vector_sum<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
+    vector_reduction_kernel<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
     CUDA_CHECK_ERROR(cudaGetLastError());
     CUDA_CHECK_ERROR(cudaEventRecord(stop)); 
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());

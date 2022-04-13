@@ -19,7 +19,7 @@ void __cuda_check_error(cudaError_t err, const char *file, int line){
 
 
 
-__global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
+__global__ void vector_reduction_kernel(unsigned char *values, unsigned int nitems, unsigned long long* result){
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx < nitems) atomicAdd(result, values[idx]);  
 }
@@ -32,12 +32,12 @@ int main(int argc, char **argv){
     unsigned char *values = (unsigned char*) malloc(sizeof(unsigned int) * nitems);
     if(!values){
         fprintf(stderr, "Error while allocating memory\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     // Initialise the vector of n elements to random values
     unsigned long long correct_result = 0;
     for(int i = 0; i < nitems; i++){
-        values[i] = (i + 1) % 256;
+        values[i] = (i + 1) % 128;
         correct_result += values[i];
     }
 
@@ -53,7 +53,7 @@ int main(int argc, char **argv){
     CUDA_CHECK_ERROR(cudaEventCreate(&start));
     CUDA_CHECK_ERROR(cudaEventCreate(&stop));
     CUDA_CHECK_ERROR(cudaEventRecord(start)); 
-    vector_sum<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
+    vector_reduction_kernel<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
     CUDA_CHECK_ERROR(cudaGetLastError());
     CUDA_CHECK_ERROR(cudaEventRecord(stop)); 
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());

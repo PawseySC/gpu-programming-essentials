@@ -11,11 +11,12 @@
 
 #define NTHREADS 1024 
 #define ALL_THREADS_MASK 0xffffffff
+#define WARPSIZE 32
 
 
-__global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
+__global__ void vector_reduction_kernel(unsigned char *values, unsigned int nitems, unsigned long long* result){
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    __shared__ unsigned int partial_sums[warpSize];
+    __shared__ unsigned int partial_sums[WARPSIZE];
     unsigned int warpId = threadIdx.x / warpSize;
     unsigned int laneId = threadIdx.x % warpSize; 
     unsigned int myvalue = 0; 
@@ -54,12 +55,12 @@ int main(int argc, char **argv){
     unsigned char *values = (unsigned char*) malloc(sizeof(unsigned int) * nitems);
     if(!values){
         fprintf(stderr, "Error while allocating memory\n");
-        return -1;
+        return EXIT_FAILURE;
     }
     // Initialise the vector of n elements to random values
     unsigned long long correct_result = 0;
     for(int i = 0; i < nitems; i++){
-        values[i] = rand() % 256;
+        values[i] = (i + 1) % 128;
         correct_result += values[i];
     }
     unsigned long long sum = 0ull;
@@ -75,7 +76,7 @@ int main(int argc, char **argv){
     CUDA_CHECK_ERROR(cudaEventCreate(&start));
     CUDA_CHECK_ERROR(cudaEventCreate(&stop));
     CUDA_CHECK_ERROR(cudaEventRecord(start)); 
-    vector_sum<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
+    vector_reduction_kernel<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
     CUDA_CHECK_ERROR(cudaGetLastError());
     CUDA_CHECK_ERROR(cudaEventRecord(stop)); 
     CUDA_CHECK_ERROR(cudaDeviceSynchronize());
@@ -86,8 +87,8 @@ int main(int argc, char **argv){
     printf("Result: %llu - Time elapsed: %f\n", sum, time_spent/1000.0f);
     if(correct_result != sum) {
         fprintf(stderr, "Error: sum is not correct, should be %llu\n", correct_result);
-        return 1;
+        return EXIT_FAILURE;
     }
-    return 0;
+    return EXIT_SUCCESS;
 
 }
