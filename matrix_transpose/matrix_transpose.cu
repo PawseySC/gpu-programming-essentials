@@ -45,9 +45,9 @@ float *cpu_matrix_transpose(float *a_in, int m, int n){
 __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
     unsigned int idx_in = blockDim.x * blockIdx.x + threadIdx.x;
     if (idx_in < m * n){
-        int row = idx_in / n;
-        int col = idx_in % n;
-        unsigned int idx_trans =  col * m + row; // TODO: complete here
+        int row_in = ;
+        int col_in = ;
+        unsigned int idx_trans = ; // TODO: complete here
         a_trans[idx_trans] = a_in[idx_in];
     }
 }
