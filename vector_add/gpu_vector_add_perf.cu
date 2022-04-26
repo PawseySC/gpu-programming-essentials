@@ -178,7 +178,7 @@ void test_performance(unsigned int n){
 
 
 int main(int argc, char **argv){
-    unsigned int n = 100;
+    unsigned int n = 1e9;
     if(argc >= 2){
         n = (unsigned int) atoi(argv[1]);
     }else{

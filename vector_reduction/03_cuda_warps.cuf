@@ -9,7 +9,6 @@ attributes(global) subroutine vector_reduction_kernel(values, n, result)
     
     integer(kind = int64), shared :: partial_sum(32)
     integer :: tmp, idx, warpid, laneid
-    print *, warpsize
     idx = (blockidx%x - 1) * blockdim%x + threadidx%x
     warpid = (threadIdx%x - 1) / warpsize + 1
     laneid = mod((threadIdx%x - 1),  warpsize) + 1
