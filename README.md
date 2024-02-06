@@ -2,20 +2,11 @@
 
 Exercises for the GPU Programming Essentials lecture for Curtin's HPC course.
 
-All the exercises will be run on Topaz cluster, although you can run them on your local machine as well if you have a NVIDIA Graphics Card. 
+The GPU programming language chosen is HIP, a C++ language extension part of the AMD ROCm software stack. Unfortunately, Fortran is not supported at this stage. All the exercises will be run on Setonix, which is equipped with AMD GPUs. If you have a NVIDIA Graphics Card on your local machine, then you will be able to run exercises by rewriting in CUDA with minor modifications (in most cases, you can simply replace the `hip` prefix with `cuda` in API calls).
 
-# Loading and using CUDA
+# Loading and using ROCm
 
-The latest NVIDIA SDK has been installed in the course's group directory. To use it, execute the following
-
-```
-module use /group/courses0100/software/nvhpc/modulefiles
-module load nvhpc/21.9
-```
-
-For CUDA C/C++ code, use the `nvcc` compiler.
-
-For CUDA Fortran code, use the `nvfortran` compiler.
+ROCm is available on Setonix through the `rocm/5.2.3` module. To use it, run `module load rocm/5.2.3`. The compiler we will be using is `hipcc`.
 
 ## Example batch script
 ```
