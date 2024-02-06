@@ -7,16 +7,16 @@
 #define NTHREADS 1024
 
 
-void __cuda_check_error(hipError_t err, const char *file, int line){
+void __hip_check_error(hipError_t err, const char *file, int line){
 	if(err != hipSuccess){
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, hipGetErrorString(err));
+        fprintf(stderr, "HIP error (%s:%d): %s\n", file, line, hipGetErrorString(err));
         exit(1);
     }
 }
 
 
-#define CUDA_CHECK_ERROR(X)({\
-	__cuda_check_error((X), __FILE__, __LINE__);\
+#define HIP_CHECK_ERROR(X)({\
+	__hip_check_error((X), __FILE__, __LINE__);\
 })
 
 
@@ -67,30 +67,30 @@ __global__ void vector_add(float *A, float *B, float *C, unsigned int n){
 
 void vector_add_driver(float *A, float *B, float *C, unsigned int n){
     float *dev_A, *dev_B, *dev_C;
-    CUDA_CHECK_ERROR(hipMalloc(&dev_A, sizeof(float) * n));
-    CUDA_CHECK_ERROR(hipMalloc(&dev_B, sizeof(float) * n));
-    CUDA_CHECK_ERROR(hipMalloc(&dev_C, sizeof(float) * n));
-    CUDA_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n, hipMemcpyHostToDevice));
-    CUDA_CHECK_ERROR(hipMemcpy(dev_B, B, sizeof(float) * n, hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMalloc(&dev_A, sizeof(float) * n));
+    HIP_CHECK_ERROR(hipMalloc(&dev_B, sizeof(float) * n));
+    HIP_CHECK_ERROR(hipMalloc(&dev_C, sizeof(float) * n));
+    HIP_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n, hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(dev_B, B, sizeof(float) * n, hipMemcpyHostToDevice));
     const unsigned int nblocks = (n + NTHREADS - 1) / NTHREADS;
     hipEvent_t start, stop;
-    CUDA_CHECK_ERROR(hipEventCreate(&start));
-    CUDA_CHECK_ERROR(hipEventCreate(&stop));
-    CUDA_CHECK_ERROR(hipEventRecord(start));
+    HIP_CHECK_ERROR(hipEventCreate(&start));
+    HIP_CHECK_ERROR(hipEventCreate(&stop));
+    HIP_CHECK_ERROR(hipEventRecord(start));
     hipLaunchKernelGGL(vector_add, nblocks, NTHREADS, 0, 0, dev_A, dev_B, dev_C, n);
-    CUDA_CHECK_ERROR(hipGetLastError());
-    CUDA_CHECK_ERROR(hipEventRecord(stop));
-    CUDA_CHECK_ERROR(hipDeviceSynchronize());
+    HIP_CHECK_ERROR(hipGetLastError());
+    HIP_CHECK_ERROR(hipEventRecord(stop));
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
     float elapsed;
-    CUDA_CHECK_ERROR(hipEventElapsedTime(&elapsed, start, stop));
+    HIP_CHECK_ERROR(hipEventElapsedTime(&elapsed, start, stop));
     printf("'vector_sum' kernel execution time (ms): %.3lf\n", elapsed);
-    CUDA_CHECK_ERROR(hipMemcpy(C, dev_C, sizeof(float) * n, hipMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(hipDeviceSynchronize());
-    CUDA_CHECK_ERROR(hipFree(dev_A));
-    CUDA_CHECK_ERROR(hipFree(dev_B));
-    CUDA_CHECK_ERROR(hipFree(dev_C));
-    CUDA_CHECK_ERROR(hipEventDestroy(start));
-    CUDA_CHECK_ERROR(hipEventDestroy(stop));
+    HIP_CHECK_ERROR(hipMemcpy(C, dev_C, sizeof(float) * n, hipMemcpyDeviceToHost));
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+    HIP_CHECK_ERROR(hipFree(dev_A));
+    HIP_CHECK_ERROR(hipFree(dev_B));
+    HIP_CHECK_ERROR(hipFree(dev_C));
+    HIP_CHECK_ERROR(hipEventDestroy(start));
+    HIP_CHECK_ERROR(hipEventDestroy(stop));
 }
 
 
@@ -185,8 +185,8 @@ int main(int argc, char **argv){
     }else{
         printf("Using default n = 100 for performance testing.\nTo change behaviour, %s [n]\n\n", argv[0]);
     }
-    // The following call is done to initialise CUDA here and not to include CUDA initialisation in subsequent calls, which we are timing.
-    CUDA_CHECK_ERROR(hipSetDevice(0));
+    // The following call is done to initialise HIP here and not to include HIP initialisation in subsequent calls, which we are timing.
+    HIP_CHECK_ERROR(hipSetDevice(0));
     test_correctness();
     test_performance(n);
     return 0;

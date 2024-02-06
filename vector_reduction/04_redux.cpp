@@ -3,16 +3,16 @@
 #include <stdlib.h>
 #include <time.h>
 
-void __cuda_check_error(hipError_t err, const char *file, int line){
+void __hip_check_error(hipError_t err, const char *file, int line){
 	if(err != hipSuccess){
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, hipGetErrorString(err));
+        fprintf(stderr, "HIP error (%s:%d): %s\n", file, line, hipGetErrorString(err));
         exit(1);
     }
 }
 
 
-#define CUDA_CHECK_ERROR(X)({\
-	__cuda_check_error((X), __FILE__, __LINE__);\
+#define HIP_CHECK_ERROR(X)({\
+	__hip_check_error((X), __FILE__, __LINE__);\
 })
 
 #define NTHREADS 1024 
@@ -68,24 +68,24 @@ int main(int argc, char **argv){
     unsigned long long sum = 0ull;
     unsigned long long *dev_sum;
     unsigned char *dev_values;
-    CUDA_CHECK_ERROR(hipMalloc(&dev_values, sizeof(unsigned char) * nitems));
-    CUDA_CHECK_ERROR(hipMalloc(&dev_sum, sizeof(unsigned long long)));
-    CUDA_CHECK_ERROR(hipMemset(dev_sum, 0, sizeof(unsigned long long)));
-    CUDA_CHECK_ERROR(hipMemcpy(dev_values, values, sizeof(unsigned char) * nitems, hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMalloc(&dev_values, sizeof(unsigned char) * nitems));
+    HIP_CHECK_ERROR(hipMalloc(&dev_sum, sizeof(unsigned long long)));
+    HIP_CHECK_ERROR(hipMemset(dev_sum, 0, sizeof(unsigned long long)));
+    HIP_CHECK_ERROR(hipMemcpy(dev_values, values, sizeof(unsigned char) * nitems, hipMemcpyHostToDevice));
     unsigned int nblocks = (nitems + NTHREADS - 1) / NTHREADS;
-    printf("Number of cuda blocks: %u\n", nblocks);
+    printf("Number of hip blocks: %u\n", nblocks);
     hipEvent_t start, stop;
-    CUDA_CHECK_ERROR(hipEventCreate(&start));
-    CUDA_CHECK_ERROR(hipEventCreate(&stop));
-    CUDA_CHECK_ERROR(hipEventRecord(start)); 
+    HIP_CHECK_ERROR(hipEventCreate(&start));
+    HIP_CHECK_ERROR(hipEventCreate(&stop));
+    HIP_CHECK_ERROR(hipEventRecord(start)); 
     hipLaunchKernelGGL(vector_reduction_kernel, nblocks, NTHREADS, 0, 0, dev_values, nitems, dev_sum);
-    CUDA_CHECK_ERROR(hipGetLastError());
-    CUDA_CHECK_ERROR(hipEventRecord(stop)); 
-    CUDA_CHECK_ERROR(hipDeviceSynchronize());
-    CUDA_CHECK_ERROR(hipMemcpy(&sum, dev_sum, sizeof(unsigned long long), hipMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(hipDeviceSynchronize());
+    HIP_CHECK_ERROR(hipGetLastError());
+    HIP_CHECK_ERROR(hipEventRecord(stop)); 
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+    HIP_CHECK_ERROR(hipMemcpy(&sum, dev_sum, sizeof(unsigned long long), hipMemcpyDeviceToHost));
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
     float time_spent;
-    CUDA_CHECK_ERROR(hipEventElapsedTime(&time_spent, start, stop));
+    HIP_CHECK_ERROR(hipEventElapsedTime(&time_spent, start, stop));
     printf("Result: %llu - Time elapsed: %f\n", sum, time_spent/1000.0f);
     if(correct_result != sum) {
         fprintf(stderr, "Error: sum is not correct, should be %llu\n", correct_result);

@@ -6,9 +6,9 @@
 
 #define NTHREADS 1024
 
-#define CUDA_CHECK_ERROR(X)({\
+#define HIP_CHECK_ERROR(X)({\
     if((X) != hipSuccess){\
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, hipGetErrorString((X)));\
+        fprintf(stderr, "HIP error (%s:%d): %s\n", __FILE__, __LINE__, hipGetErrorString((X)));\
         exit(1);\
     }\
 })
@@ -61,9 +61,9 @@ __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
  */ 
  float* matrix_transpose_driver(float *A, int m, int n){
     float *dev_A, *dev_A_transposed, *A_transposed;
-    CUDA_CHECK_ERROR(hipMalloc(&dev_A, sizeof(float) * n * m));
-    CUDA_CHECK_ERROR(hipMalloc(&dev_A_transposed, sizeof(float) * n * m));
-    CUDA_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n * m, hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMalloc(&dev_A, sizeof(float) * n * m));
+    HIP_CHECK_ERROR(hipMalloc(&dev_A_transposed, sizeof(float) * n * m));
+    HIP_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n * m, hipMemcpyHostToDevice));
     // allocate memory on CPU to store final result
     A_transposed = (float*) malloc(sizeof(float) * n * m);
     MALLOC_CHECK_ERROR(A_transposed);
@@ -72,14 +72,14 @@ __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
     ptimer_t kernel_timer;
     timer_start(&kernel_timer);
     hipLaunchKernelGGL(matrix_transpose, nBlocks, NTHREADS, 0, 0, dev_A, dev_A_transposed, m, n);
-    CUDA_CHECK_ERROR(hipGetLastError());
-    CUDA_CHECK_ERROR(hipDeviceSynchronize());
+    HIP_CHECK_ERROR(hipGetLastError());
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
     timer_stop(&kernel_timer);
     printf("'matrix_transpose' kernel execution time (ms): %.4f\n", timer_elapsed(kernel_timer));
-    CUDA_CHECK_ERROR(hipMemcpy(A_transposed, dev_A_transposed, sizeof(float) * n * m, hipMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(hipDeviceSynchronize());
-    CUDA_CHECK_ERROR(hipFree(dev_A));
-    CUDA_CHECK_ERROR(hipFree(dev_A_transposed));
+    HIP_CHECK_ERROR(hipMemcpy(A_transposed, dev_A_transposed, sizeof(float) * n * m, hipMemcpyDeviceToHost));
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+    HIP_CHECK_ERROR(hipFree(dev_A));
+    HIP_CHECK_ERROR(hipFree(dev_A_transposed));
     return A_transposed;
 }
 
@@ -150,8 +150,8 @@ int main(int argc, char **argv){
     }else{
         printf("Using defaults n = 1000, m = 100 for performance testing.\nTo change behaviour, %s [m n]\n\n", argv[0]);
     }
-    // The following call is done to initialise CUDA here and not to include CUDA initialisation in subsequent calls, which we are timing.
-    CUDA_CHECK_ERROR(hipSetDevice(0));
+    // The following call is done to initialise HIP here and not to include HIP initialisation in subsequent calls, which we are timing.
+    HIP_CHECK_ERROR(hipSetDevice(0));
     test_correctness();
     test_performance(n, m);
     return 0;

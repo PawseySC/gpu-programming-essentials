@@ -2,7 +2,7 @@
 
 Exercises for the GPU Programming Essentials lecture for Curtin's HPC course.
 
-The GPU programming language chosen is HIP, a C++ language extension part of the AMD ROCm software stack. Unfortunately, Fortran is not supported at this stage. All the exercises will be run on Setonix, which is equipped with AMD GPUs. If you have a NVIDIA Graphics Card on your local machine, then you will be able to run exercises by rewriting in CUDA with minor modifications (in most cases, you can simply replace the `hip` prefix with `cuda` in API calls).
+The GPU programming language chosen is HIP, a C++ language extension part of the AMD ROCm software stack. Unfortunately, Fortran is not supported at this stage. All the exercises will be run on Setonix, which is equipped with AMD GPUs. If you have a NVIDIA Graphics Card on your local machine, then you will be able to run exercises by rewriting them in CUDA with minor modifications (in most cases, you can simply replace the `cuda` prefix with `hip` in API calls).
 
 # Loading and using ROCm
 

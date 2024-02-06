@@ -5,9 +5,9 @@
 
 
 // prints error if detected and exits 
-#define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString((X)));\
+#define HIP_CHECK_ERROR(X)({\
+    if((X) != hipSuccess){\
+        fprintf(stderr, "HIP error (%s:%d): %s\n", __FILE__, __LINE__, hipGetErrorString((X)));\
         exit(1);\
     }\
 })
@@ -34,7 +34,7 @@ int main(int argc, char** argv){
 	// variable declarations
     cublasHandle_t handle;           // variable for cublas handle
     int device;                      // current device id
-    struct cudaDeviceProp prop;      // current device properties
+    struct hipDeviceProp prop;      // current device properties
 	float* hostArrayA;                 // pointer for array A in host memory
     float* hostArrayB;                 // pointer for array B in host memory
 	float* deviceArrayA;               // pointer for array A in device memory
@@ -43,8 +43,8 @@ int main(int argc, char** argv){
     int size = length*sizeof(float);   // size of array in bytes
 
     // get device properties
-    CUDA_CHECK_ERROR(cudaGetDevice(&device));
-    CUDA_CHECK_ERROR(cudaGetDeviceProperties(&prop, device));
+    HIP_CHECK_ERROR(hipGetDevice(&device));
+    HIP_CHECK_ERROR(hipGetDeviceProperties(&prop, device));
     printf("\nDevice properties: using %s\n\n",prop.name);
 
 	// allocate host memory
@@ -53,8 +53,8 @@ int main(int argc, char** argv){
     MALLOC_CHECK_ERROR(hostArrayA && hostArrayB);
 
 	// allocate device memory
-	CUDA_CHECK_ERROR(cudaMalloc(&deviceArrayA, size));
-    CUDA_CHECK_ERROR(cudaMalloc(&deviceArrayB, size));
+	HIP_CHECK_ERROR(hipMalloc(&deviceArrayA, size));
+    HIP_CHECK_ERROR(hipMalloc(&deviceArrayB, size));
     
 	// initialise host memory
 	for(int i=0; i<length; i++){
@@ -95,8 +95,8 @@ int main(int argc, char** argv){
     print_array_terse(hostArrayB, length, 8);
 
 	// free device memory
-    CUDA_CHECK_ERROR(cudaFree(deviceArrayA));
-    CUDA_CHECK_ERROR(cudaFree(deviceArrayB));
+    HIP_CHECK_ERROR(hipFree(deviceArrayA));
+    HIP_CHECK_ERROR(hipFree(deviceArrayB));
     
 	// free host memory
 	free(hostArrayA);
