@@ -1,6 +1,7 @@
+#include "hip/hip_runtime.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include <cublas_v2.h>
+#include <hipblas.h>
 #include "../common/array.h"
 
 
@@ -14,7 +15,7 @@
 
 // detects cublas non-sucess status and exits
 #define CUBLAS_CHECK_ERROR(X)({\
-    if ((X) != CUBLAS_STATUS_SUCCESS){\
+    if ((X) != HIPBLAS_STATUS_SUCCESS){\
         fprintf(stderr, "CUBLAS error (%s:%d): %i\n", __FILE__, __LINE__, (X));\
         exit(1);\
     }\
@@ -32,9 +33,9 @@
 // add two vectors
 int main(int argc, char** argv){
 	// variable declarations
-    cublasHandle_t handle;           // variable for cublas handle
+    hipblasHandle_t handle;           // variable for cublas handle
     int device;                      // current device id
-    struct hipDeviceProp prop;      // current device properties
+    hipDeviceProp_t prop;      // current device properties
 	float* hostArrayA;                 // pointer for array A in host memory
     float* hostArrayB;                 // pointer for array B in host memory
 	float* deviceArrayA;               // pointer for array A in device memory
@@ -69,26 +70,26 @@ int main(int argc, char** argv){
     print_array_terse(hostArrayB, length, 8);
 
 	// prepare cuBLAS context
-    CUBLAS_CHECK_ERROR(cublasCreate(&handle));
+    CUBLAS_CHECK_ERROR(hipblasCreate(&handle));
 
 	// copy host to device for arrays A and B
-	CUBLAS_CHECK_ERROR(cublasSetVector(length, sizeof(float), hostArrayA, 1, deviceArrayA, 1));
+	CUBLAS_CHECK_ERROR(hipblasSetVector(length, sizeof(float), hostArrayA, 1, deviceArrayA, 1));
    
-    // TODO: use cublasSetVector to copy array B to the device
+    // TODO: use hipblasSetVector to copy array B to the device
     printf("\nCopied array A and B to device\n\n");
 
     // perform B = 1*A + B using cublas
 	const float c = 1.0f;
-    // TODO: use cublasSaxpy to add arrays A and B together
+    // TODO: use hipblasSaxpy to add arrays A and B together
     
     printf("Performed B = A + B using cublas\n\n");
 
 	// copy device to host for array B
-	// TODO: use cublasGetVector copy array B back to the host
+	// TODO: use hipblasGetVector copy array B back to the host
     printf("Copied array B from device\n\n");
 
     // destroy cuBLAS context
-    CUBLAS_CHECK_ERROR(cublasDestroy(handle));
+    CUBLAS_CHECK_ERROR(hipblasDestroy(handle));
 
 	// print host memory values for array C
     printf("Array B: ");
