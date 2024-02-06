@@ -1,11 +1,12 @@
+#include "hip/hip_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 #define NTHREADS 1024
 
-void __cuda_check_error(cudaError_t err, const char *file, int line){
-	if(err != cudaSuccess){
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+void __cuda_check_error(hipError_t err, const char *file, int line){
+	if(err != hipSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, hipGetErrorString(err));
         exit(1);
     }
 }
@@ -59,19 +60,19 @@ int main(void){
     init_vec(A, n);
     init_vec(B, n);
     float *dev_A, *dev_B, *dev_C;
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_A, sizeof(float) * n));
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_B, sizeof(float) * n));
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_C, sizeof(float) * n));
-    CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n, cudaMemcpyHostToDevice));
-    CUDA_CHECK_ERROR(cudaMemcpy(dev_B, B, sizeof(float) * n, cudaMemcpyHostToDevice));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_A, sizeof(float) * n));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_B, sizeof(float) * n));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_C, sizeof(float) * n));
+    CUDA_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n, hipMemcpyHostToDevice));
+    CUDA_CHECK_ERROR(hipMemcpy(dev_B, B, sizeof(float) * n, hipMemcpyHostToDevice));
     
-    vector_add<<<1, n>>>(dev_A, dev_B, dev_C);
+    hipLaunchKernelGGL(vector_add, 1, n, 0, 0, dev_A, dev_B, dev_C);
 
-    CUDA_CHECK_ERROR(cudaGetLastError());
+    CUDA_CHECK_ERROR(hipGetLastError());
     // some errors happened during kernel execution may show up only after device synchronization
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize()); 
-    CUDA_CHECK_ERROR(cudaMemcpy(C, dev_C, sizeof(float) * n, cudaMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    CUDA_CHECK_ERROR(hipDeviceSynchronize()); 
+    CUDA_CHECK_ERROR(hipMemcpy(C, dev_C, sizeof(float) * n, hipMemcpyDeviceToHost));
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
     
     // check the result is correct
     bool sums_equal = true;
@@ -79,9 +80,9 @@ int main(void){
         sums_equal = compare_float(C[i], A[i] + B[i]);
         if(!sums_equal) break;
     }
-    CUDA_CHECK_ERROR(cudaFree(dev_A));
-    CUDA_CHECK_ERROR(cudaFree(dev_B));
-    CUDA_CHECK_ERROR(cudaFree(dev_C));
+    CUDA_CHECK_ERROR(hipFree(dev_A));
+    CUDA_CHECK_ERROR(hipFree(dev_B));
+    CUDA_CHECK_ERROR(hipFree(dev_C));
     free(A);
     free(B);
     free(C);

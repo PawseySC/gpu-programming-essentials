@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "../common/timer.h"
@@ -6,9 +7,9 @@
 #define NTHREADS 1024
 
 
-void __cuda_check_error(cudaError_t err, const char *file, int line){
-	if(err != cudaSuccess){
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+void __cuda_check_error(hipError_t err, const char *file, int line){
+	if(err != hipSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, hipGetErrorString(err));
         exit(1);
     }
 }
@@ -22,7 +23,7 @@ void __cuda_check_error(cudaError_t err, const char *file, int line){
 
 #define MALLOC_CHECK_ERROR(X)({\
     if ((X) == 0){\
-        fprintf(stderr, "Malloc error (%s:%d): %i\n", __FILE__, __LINE__, (X));\
+        fprintf(stderr, "Malloc error (%s:%d)\n", __FILE__, __LINE__);\
         exit(1);\
     }\
 })
@@ -43,30 +44,30 @@ __global__ void vector_max(int *v, int *max, int n){
 // Returns the maximum value in the vector v of size n.
 int vector_max_driver(int *v, int n){
     int *dev_v, *dev_max, max;
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_v, sizeof(int) * n));
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_max, sizeof(int)));
-    CUDA_CHECK_ERROR(cudaMemcpy(dev_v, v, sizeof(int) * n, cudaMemcpyHostToDevice));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_v, sizeof(int) * n));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_max, sizeof(int)));
+    CUDA_CHECK_ERROR(hipMemcpy(dev_v, v, sizeof(int) * n, hipMemcpyHostToDevice));
     // set the max as the first element of the array
-    CUDA_CHECK_ERROR(cudaMemcpy(dev_max, v, sizeof(int), cudaMemcpyHostToDevice));
+    CUDA_CHECK_ERROR(hipMemcpy(dev_max, v, sizeof(int), hipMemcpyHostToDevice));
     // setup kernel configuration
     unsigned int nBlocks = (n + NTHREADS - 1) / NTHREADS;
-    cudaEvent_t start, stop;
-    CUDA_CHECK_ERROR(cudaEventCreate(&start));
-    CUDA_CHECK_ERROR(cudaEventCreate(&stop));
-    CUDA_CHECK_ERROR(cudaEventRecord(start));
-    vector_max<<<nBlocks, NTHREADS>>>(dev_v, dev_max, n);
-    CUDA_CHECK_ERROR(cudaGetLastError());
-    CUDA_CHECK_ERROR(cudaEventRecord(stop));
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    hipEvent_t start, stop;
+    CUDA_CHECK_ERROR(hipEventCreate(&start));
+    CUDA_CHECK_ERROR(hipEventCreate(&stop));
+    CUDA_CHECK_ERROR(hipEventRecord(start));
+    hipLaunchKernelGGL(vector_max, nBlocks, NTHREADS, 0, 0, dev_v, dev_max, n);
+    CUDA_CHECK_ERROR(hipGetLastError());
+    CUDA_CHECK_ERROR(hipEventRecord(stop));
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
     float elapsed;
-    CUDA_CHECK_ERROR(cudaEventElapsedTime(&elapsed, start, stop));
+    CUDA_CHECK_ERROR(hipEventElapsedTime(&elapsed, start, stop));
     printf("'vector_max' kernel execution time (ms): %.3lf\n", elapsed);
-    CUDA_CHECK_ERROR(cudaMemcpy(&max, dev_max, sizeof(int), cudaMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
-    CUDA_CHECK_ERROR(cudaFree(dev_v));
-    CUDA_CHECK_ERROR(cudaFree(dev_max));
-    CUDA_CHECK_ERROR(cudaEventDestroy(start));
-    CUDA_CHECK_ERROR(cudaEventDestroy(stop));
+    CUDA_CHECK_ERROR(hipMemcpy(&max, dev_max, sizeof(int), hipMemcpyDeviceToHost));
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
+    CUDA_CHECK_ERROR(hipFree(dev_v));
+    CUDA_CHECK_ERROR(hipFree(dev_max));
+    CUDA_CHECK_ERROR(hipEventDestroy(start));
+    CUDA_CHECK_ERROR(hipEventDestroy(stop));
     return max;
 }
 

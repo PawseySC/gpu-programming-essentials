@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "../common/timer.h"
@@ -7,8 +8,8 @@
 
 
 #define CUDA_CHECK_ERROR(X)({\
-    if((X) != cudaSuccess){\
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, cudaGetErrorString((X)));\
+    if((X) != hipSuccess){\
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", __FILE__, __LINE__, hipGetErrorString((X)));\
         exit(1);\
     }\
 })
@@ -17,7 +18,7 @@
 
 #define MALLOC_CHECK_ERROR(X)({\
     if ((X) == 0){\
-        fprintf(stderr, "Malloc error (%s:%d): %i\n", __FILE__, __LINE__, (X));\
+        fprintf(stderr, "Malloc error (%s:%d).\n", __FILE__, __LINE__);\
         exit(1);\
     }\
 })
@@ -62,9 +63,9 @@ __global__ void matrix_transpose(float *a_in, float *a_trans, int m, int n){
  */ 
 float* matrix_transpose_driver(float *A, int m, int n){
     float *dev_A, *dev_A_transposed, *A_transposed;
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_A, sizeof(float) * n * m));
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_A_transposed, sizeof(float) * n * m));
-    CUDA_CHECK_ERROR(cudaMemcpy(dev_A, A, sizeof(float) * n * m, cudaMemcpyHostToDevice));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_A, sizeof(float) * n * m));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_A_transposed, sizeof(float) * n * m));
+    CUDA_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n * m, hipMemcpyHostToDevice));
     // allocate memory on CPU to store final result
     A_transposed = (float*) malloc(sizeof(float) * n * m);
     MALLOC_CHECK_ERROR(A_transposed);
@@ -72,15 +73,15 @@ float* matrix_transpose_driver(float *A, int m, int n){
     unsigned int nBlocks = (n * m + NTHREADS - 1) / NTHREADS;
     ptimer_t kernel_timer;
     timer_start(&kernel_timer);
-    matrix_transpose<<<nBlocks, NTHREADS>>>(dev_A, dev_A_transposed, m, n);
-    CUDA_CHECK_ERROR(cudaGetLastError());
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    hipLaunchKernelGGL(matrix_transpose, nBlocks, NTHREADS, 0, 0, dev_A, dev_A_transposed, m, n);
+    CUDA_CHECK_ERROR(hipGetLastError());
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
     timer_stop(&kernel_timer);
     printf("'matrix_transpose' kernel execution time (ms): %.4f\n", timer_elapsed(kernel_timer));
-    CUDA_CHECK_ERROR(cudaMemcpy(A_transposed, dev_A_transposed, sizeof(float) * n * m, cudaMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
-    CUDA_CHECK_ERROR(cudaFree(dev_A));
-    CUDA_CHECK_ERROR(cudaFree(dev_A_transposed));
+    CUDA_CHECK_ERROR(hipMemcpy(A_transposed, dev_A_transposed, sizeof(float) * n * m, hipMemcpyDeviceToHost));
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
+    CUDA_CHECK_ERROR(hipFree(dev_A));
+    CUDA_CHECK_ERROR(hipFree(dev_A_transposed));
     return A_transposed;
 }
 
@@ -152,7 +153,7 @@ int main(int argc, char **argv){
         printf("Using defaults n = 1000, m = 100 for performance testing.\nTo change behaviour, %s [m n]\n\n", argv[0]);
     }
     // The following call is done to initialise CUDA here and not to include CUDA initialisation in subsequent calls, which we are timing.
-    CUDA_CHECK_ERROR(cudaSetDevice(0));
+    CUDA_CHECK_ERROR(hipSetDevice(0));
     test_correctness();
     test_performance(n, m);
     return 0;

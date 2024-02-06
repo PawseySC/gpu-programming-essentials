@@ -1,10 +1,11 @@
+#include "hip/hip_runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-void __cuda_check_error(cudaError_t err, const char *file, int line){
-	if(err != cudaSuccess){
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
+void __cuda_check_error(hipError_t err, const char *file, int line){
+	if(err != hipSuccess){
+        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, hipGetErrorString(err));
         exit(1);
     }
 }
@@ -35,7 +36,6 @@ __global__ void vector_reduction_kernel(unsigned char *values, unsigned int nite
         if(laneId < i){
             partial_sums[threadIdx.x] += partial_sums[threadIdx.x + i];
         }
-        __syncwarp();
     }
     __syncthreads();
     // step 2
@@ -44,7 +44,6 @@ __global__ void vector_reduction_kernel(unsigned char *values, unsigned int nite
             if(laneId < i){
                 partial_sums[warpSize*laneId] += partial_sums[warpSize*(laneId + i)];
             }
-            __syncwarp();
         }
         if(laneId == 0) atomicAdd(result, partial_sums[0]);
     }  
@@ -69,24 +68,24 @@ int main(int argc, char **argv){
     unsigned long long sum = 0ull;
     unsigned long long *dev_sum;
     unsigned char *dev_values;
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_values, sizeof(unsigned char) * nitems));
-    CUDA_CHECK_ERROR(cudaMalloc(&dev_sum, sizeof(unsigned long long)));
-    CUDA_CHECK_ERROR(cudaMemset(dev_sum, 0, sizeof(unsigned long long)));
-    CUDA_CHECK_ERROR(cudaMemcpy(dev_values, values, sizeof(unsigned char) * nitems, cudaMemcpyHostToDevice));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_values, sizeof(unsigned char) * nitems));
+    CUDA_CHECK_ERROR(hipMalloc(&dev_sum, sizeof(unsigned long long)));
+    CUDA_CHECK_ERROR(hipMemset(dev_sum, 0, sizeof(unsigned long long)));
+    CUDA_CHECK_ERROR(hipMemcpy(dev_values, values, sizeof(unsigned char) * nitems, hipMemcpyHostToDevice));
     unsigned int nblocks = (nitems + NTHREADS - 1) / NTHREADS;
     printf("Number of cuda blocks: %u\n", nblocks);
-    cudaEvent_t start, stop;
-    CUDA_CHECK_ERROR(cudaEventCreate(&start));
-    CUDA_CHECK_ERROR(cudaEventCreate(&stop));
-    CUDA_CHECK_ERROR(cudaEventRecord(start)); 
-    vector_reduction_kernel<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
-    CUDA_CHECK_ERROR(cudaGetLastError());
-    CUDA_CHECK_ERROR(cudaEventRecord(stop)); 
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
-    CUDA_CHECK_ERROR(cudaMemcpy(&sum, dev_sum, sizeof(unsigned long long), cudaMemcpyDeviceToHost));
-    CUDA_CHECK_ERROR(cudaDeviceSynchronize());
+    hipEvent_t start, stop;
+    CUDA_CHECK_ERROR(hipEventCreate(&start));
+    CUDA_CHECK_ERROR(hipEventCreate(&stop));
+    CUDA_CHECK_ERROR(hipEventRecord(start)); 
+    hipLaunchKernelGGL(vector_reduction_kernel, nblocks, NTHREADS, 0, 0, dev_values, nitems, dev_sum);
+    CUDA_CHECK_ERROR(hipGetLastError());
+    CUDA_CHECK_ERROR(hipEventRecord(stop)); 
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
+    CUDA_CHECK_ERROR(hipMemcpy(&sum, dev_sum, sizeof(unsigned long long), hipMemcpyDeviceToHost));
+    CUDA_CHECK_ERROR(hipDeviceSynchronize());
     float time_spent;
-    CUDA_CHECK_ERROR(cudaEventElapsedTime(&time_spent, start, stop));
+    CUDA_CHECK_ERROR(hipEventElapsedTime(&time_spent, start, stop));
     printf("Result: %llu - Time elapsed: %f\n", sum, time_spent/1000.0f);
     if(correct_result != sum) {
         fprintf(stderr, "Error: sum is not correct, should be %llu\n", correct_result);

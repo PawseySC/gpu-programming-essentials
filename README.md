@@ -6,7 +6,11 @@ The GPU programming language chosen is HIP, a C++ language extension part of the
 
 # Loading and using ROCm
 
-ROCm is available on Setonix through the `rocm/5.2.3` module. To use it, run `module load rocm/5.2.3`. The compiler we will be using is `hipcc`.
+ROCm is available on Setonix through the `rocm/5.2.3` module. To use it, run `module load rocm/5.2.3`. The compiler is `hipcc`, and must be invoked with the following flag: `--offload-arch=gfx90a`. Like so,
+
+```
+hipcc --offload-arch=gfx90a
+```
 
 ## Example batch script
 ```
@@ -15,13 +19,13 @@ ROCm is available on Setonix through the `rocm/5.2.3` module. To use it, run `mo
 
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
+#SBATCH --time=00:02:00
 #SBATCH --account=courses0100
 #SBATCH --nodes=1
-#SBATCH --partition=gpuq
+#SBATCH --partition=gpu
 
-module use /group/courses0100/software/nvhpc/modulefiles
-module load nvhpc/21.9
+module load rocm/5.2.3
 
-srun nvcc -o add vector_add/gpu_vector_add.cu
+srun hipcc --offload-arch=gfx90a -o add vector_add/gpu_vector_add.cpp
 srun ./add
 ``` 
