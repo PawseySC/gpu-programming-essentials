@@ -52,7 +52,7 @@ __global__ void vector_add(float *a, float *b, float *c){
 
 
 int main(void){
-    const unsigned int n = 100;
+    const unsigned int n = 10000;
     float *A = (float*) malloc(n * sizeof(float));
     float *B = (float*) malloc(n * sizeof(float));
     float *C = (float*) malloc(n * sizeof(float));
@@ -66,7 +66,7 @@ int main(void){
     HIP_CHECK_ERROR(hipMemcpy(dev_A, A, sizeof(float) * n, hipMemcpyHostToDevice));
     HIP_CHECK_ERROR(hipMemcpy(dev_B, B, sizeof(float) * n, hipMemcpyHostToDevice));
     
-    hipLaunchKernelGGL(vector_add, 1, n, 0, 0, dev_A, dev_B, dev_C);
+    vector_add<<<1, n>>>(dev_A, dev_B, dev_C);
 
     HIP_CHECK_ERROR(hipGetLastError());
     // some errors happened during kernel execution may show up only after device synchronization

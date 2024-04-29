@@ -77,7 +77,7 @@ void vector_add_driver(float *A, float *B, float *C, unsigned int n){
     HIP_CHECK_ERROR(hipEventCreate(&start));
     HIP_CHECK_ERROR(hipEventCreate(&stop));
     HIP_CHECK_ERROR(hipEventRecord(start));
-    hipLaunchKernelGGL(vector_add, nblocks, NTHREADS, 0, 0, dev_A, dev_B, dev_C, n);
+    vector_add<<<nblocks, NTHREADS>>>(dev_A, dev_B, dev_C, n);
     HIP_CHECK_ERROR(hipGetLastError());
     HIP_CHECK_ERROR(hipEventRecord(stop));
     HIP_CHECK_ERROR(hipDeviceSynchronize());
@@ -179,7 +179,7 @@ void test_performance(unsigned int n){
 
 
 int main(int argc, char **argv){
-    unsigned int n = 1e9;
+    unsigned int n = 1e3;
     if(argc >= 2){
         n = (unsigned int) atoi(argv[1]);
     }else{

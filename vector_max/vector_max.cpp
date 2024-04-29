@@ -55,7 +55,7 @@ int vector_max_driver(int *v, int n){
     HIP_CHECK_ERROR(hipEventCreate(&start));
     HIP_CHECK_ERROR(hipEventCreate(&stop));
     HIP_CHECK_ERROR(hipEventRecord(start));
-    hipLaunchKernelGGL(vector_max, nBlocks, NTHREADS, 0, 0, dev_v, dev_max, n);
+    vector_max<<<nBlocks, NTHREADS>>>(dev_v, dev_max, n);
     HIP_CHECK_ERROR(hipGetLastError());
     HIP_CHECK_ERROR(hipEventRecord(stop));
     HIP_CHECK_ERROR(hipDeviceSynchronize());

@@ -73,7 +73,7 @@ float* matrix_transpose_driver(float *A, int m, int n){
     unsigned int nBlocks = (n * m + NTHREADS - 1) / NTHREADS;
     ptimer_t kernel_timer;
     timer_start(&kernel_timer);
-    hipLaunchKernelGGL(matrix_transpose, nBlocks, NTHREADS, 0, 0, dev_A, dev_A_transposed, m, n);
+    matrix_transpose<<<nBlocks, NTHREADS>>>(dev_A, dev_A_transposed, m, n);
     HIP_CHECK_ERROR(hipGetLastError());
     HIP_CHECK_ERROR(hipDeviceSynchronize());
     timer_stop(&kernel_timer);

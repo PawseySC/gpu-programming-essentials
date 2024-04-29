@@ -54,7 +54,7 @@ int main(int argc, char **argv){
     HIP_CHECK_ERROR(hipEventCreate(&start));
     HIP_CHECK_ERROR(hipEventCreate(&stop));
     HIP_CHECK_ERROR(hipEventRecord(start)); 
-    hipLaunchKernelGGL(vector_reduction_kernel, nblocks, NTHREADS, 0, 0, dev_values, nitems, dev_sum);
+    vector_reduction_kernel<<<nblocks, NTHREADS>>>(dev_values, nitems, dev_sum);
     HIP_CHECK_ERROR(hipGetLastError());
     HIP_CHECK_ERROR(hipEventRecord(stop)); 
     HIP_CHECK_ERROR(hipDeviceSynchronize());
