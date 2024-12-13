@@ -14,20 +14,20 @@
 #define NWARPS 16
 
 
-__global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned long long* result){
-    unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    __shared__ unsigned int partial_sums[NWARPS];
+__global__ void vector_sum(unsigned char *values, unsigned long long nitems, unsigned long long* result){
+    unsigned long long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    __shared__ unsigned long long partial_sums[NWARPS];
     unsigned int warpId = threadIdx.x / warpSize;
     unsigned int laneId = threadIdx.x % warpSize; 
     unsigned int gridSize = gridDim.x * blockDim.x;
     unsigned int nloops = (nitems + gridSize  - 1) / gridSize;
-    unsigned int myvalue = 0;
+    unsigned long long myvalue = 0;
     for(unsigned int l = 0; l < nloops; l++, idx+=gridSize){
         if(idx < nitems) myvalue += values[idx]; 
     }
  
     for(unsigned int i = warpSize/2; i >= 1; i /= 2){
-        unsigned int up = __shfl_down(myvalue, i); 
+        unsigned long long up = __shfl_down(myvalue, i); 
         if(laneId < i){
             myvalue += up; 
         }
@@ -39,7 +39,7 @@ __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned 
     if(warpId == 0){
         if(laneId > 0 && laneId < NWARPS) myvalue = partial_sums[laneId];
         for(unsigned int i = NWARPS/2; i >= 1; i >>= 1){
-            unsigned int up = __shfl_down(myvalue, i, NWARPS); 
+            unsigned long long up = __shfl_down(myvalue, i, NWARPS); 
             if(laneId < i){
                myvalue += up; 
             }
@@ -51,15 +51,16 @@ __global__ void vector_sum(unsigned char *values, unsigned int nitems, unsigned 
 
 int main(int argc, char **argv){
     
-    unsigned int nitems = 1e9; 
-    unsigned char *values = (unsigned char*) malloc(sizeof(unsigned int) * nitems);
+    size_t nitems = 10e9;
+    printf("Allocating %f GiB of memory.\n", (sizeof(unsigned char) * nitems) / (1024 * 1024 * 1024.0f));
+    unsigned char *values = (unsigned char*) malloc(sizeof(unsigned char) * nitems);
     if(!values){
         fprintf(stderr, "Error while allocating memory\n");
         return EXIT_FAILURE;
     }
     // Initialise the vector of n elements to random values
     unsigned long long correct_result = 0;
-    for(int i = 0; i < nitems; i++){
+    for(size_t i = 0; i < nitems; i++){
         values[i] = (i + 1) % 128;
         correct_result += values[i];
     }
