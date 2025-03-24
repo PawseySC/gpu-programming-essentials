@@ -31,7 +31,7 @@ int main(int argc, char** argv){
 
 		printf("Device %i : ", device);
 		printf("%s ", p.name);
-		printf("with %i SMs\n", p.multiProcessorCount);
+		printf("with %i compute units.\n", p.multiProcessorCount);
 	}
 	
 	printf("\n");
